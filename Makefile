@@ -32,30 +32,33 @@ DIET+=-Os
 endif
 endif
 
-LDLIBS=-lowfat
-
 libowfat_path = $(strip $(foreach dir,../libowfat*,$(wildcard $(dir)/textcode.h)))
 ifneq ($(libowfat_path),)
+LDLIBS=-lowfat
 CFLAGS+=$(foreach fnord,$(libowfat_path),-I$(dir $(fnord)))
 LDFLAGS+=$(foreach fnord,$(libowfat_path),-L$(dir $(fnord)))
 endif
 
-minit: minit.o split.o openreadclose.o opendevconsole.o
-msvc: msvc.o
-minit-update: minit-update.o split.o openreadclose.o
-serdo: serdo.o
+minit: minit.o split.o openreadclose.o opendevconsole.o djb/str_len.o djb/fmt_ulong.o
+msvc: msvc.o errmsg_argv0.o djb/str_len.o djb/str_start.o djb/fmt_ulong.o djb/fmt_str.o
+minit-update: minit-update.o split.o openreadclose.o \
+	djb/str_len.o djb/byte_copy.o djb/buffer_put.o djb/buffer_1.o djb/buffer_2.o
+serdo: serdo.o errmsg_argv0.o djb/fmt_ulong.c djb/str_cpy.o djb/str_chr.o djb/str_diff.o djb/byte_diff.o
 
-shutdown: shutdown.o split.o openreadclose.o opendevconsole.o
+shutdown: shutdown.o split.o openreadclose.o opendevconsole.o djb/str_len.o
 	$(DIET) $(CROSS)$(CC) $(LDFLAGS) -o shutdown $^
 
 %.o: %.c
 	$(DIET) $(CROSS)$(CC) $(CFLAGS) -c $<
 
+djb/%.o: djb/%.c
+	$(DIET) $(CROSS)$(CC) $(CFLAGS) -c $< -o $@
+
 %: %.o
 	$(DIET) $(CROSS)$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
-	rm -f *.o minit msvc pidfilehack hard-reboot write_proc killall5 \
+	rm -f *.o djb/*.o minit msvc pidfilehack hard-reboot write_proc killall5 \
 	shutdown minit-update serdo
 
 test: test.c
@@ -64,7 +67,7 @@ test: test.c
 pidfilehack: pidfilehack.c
 	$(DIET) $(CROSS)$(CC) $(CFLAGS) -o $@ $^
 
-hard-reboot: hard-reboot.c
+hard-reboot: hard-reboot.c djb/str_len.o
 	$(DIET) $(CROSS)$(CC) $(CFLAGS) -o $@ $^
 
 write_proc: write_proc.c

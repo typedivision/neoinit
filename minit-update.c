@@ -7,8 +7,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include "str.h"
-#include "buffer.h"
+#include "djb/str.h"
+#include "djb/buffer.h"
 
 #include "minit.h"
 

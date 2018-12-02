@@ -5,13 +5,18 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "str.h"
-#include "fmt.h"
-#include "buffer.h"
+#include <errno.h>
+#include "djb/fmt.h"
+#include "djb/str.h"
+//#include "djb/buffer.h"
 #define NOVARS
 #include "minit.h"
-#include <errmsg.h>
-#include <errno.h>
+
+extern const char *errmsg_argv0;
+
+#define msg(...) err(1,__VA_ARGS__,(char*)0)
+#define carp(...) err(2,__VA_ARGS__,(char*)0)
+#define errmsg_iam(X) errmsg_argv0 = X
 
 static int infd,outfd;
 

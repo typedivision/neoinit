@@ -16,8 +16,8 @@
 #include <stdlib.h>
 #include <alloca.h>
 #include <sys/reboot.h>
-#include "fmt.h"
-#include "str.h"
+#include "djb/fmt.h"
+#include "djb/str.h"
 
 #include "minit.h"
 
