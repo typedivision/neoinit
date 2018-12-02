@@ -1,70 +1,49 @@
-#include <errno.h>
-
+#include <string.h>
+#include <unistd.h>
+#ifndef __MINGW32__
+#include <sys/uio.h>
+#endif
 #include "buffer.h"
-#include "str.h"
-#include "byte.h"
 
-static int allwrite(int (*op)(),int fd,const char *buf,unsigned int len)
-{
-  int w;
+extern int buffer_stubborn(ssize_t (*op)(),int fd,const char* buf, size_t len,void* cookie);
 
-  while (len) {
-    w = op(fd,buf,len);
-    if (w == -1) {
-      if (errno == EINTR) continue;
-      return -1; /* note that some data may have been written */
+#ifndef __unlikely
+#ifdef __GNUC__
+#define __unlikely(x) __builtin_expect((x),0)
+#else
+#define __unlikely(x) (x)
+#endif
+#endif
+
+int buffer_put(buffer* b,const char* buf,size_t len) {
+  if (__unlikely(len>b->a-b->p)) {	/* doesn't fit */
+#ifndef __MINGW32__
+    if (b->op==write) {
+      /* if it's write, we can substitute writev */
+      struct iovec v[2];
+      ssize_t r;
+      v[0].iov_base=b->x; v[0].iov_len=b->p;
+      v[1].iov_base=(char*)buf; v[1].iov_len=len;
+      r=writev(b->fd,v,2);
+      if (r<0) return -1;
+      if ((size_t)r>=b->p) {
+	r-=b->p;
+	b->p=0;
+	buf+=r;
+	len-=r;
+	if (len) goto do_memcpy;
+	return 0;
+      } /* else fall through */
     }
-    if (w == 0) ; /* luser's fault */
-    buf += w;
-    len -= w;
-  }
-  return 0;
-}
-
-int buffer_flush(buffer *s)
-{
-  int p;
- 
-  p = s->p;
-  if (!p) return 0;
-  s->p = 0;
-  return allwrite(s->op,s->fd,s->x,p);
-}
-
-int buffer_put(buffer *s,const char *buf,unsigned int len)
-{
-  unsigned int n;
- 
-  n = s->n;
-  if (len > n - s->p) {
-    if (buffer_flush(s) == -1) return -1;
-    /* now s->p == 0 */
-    if (n < BUFFER_OUTSIZE) n = BUFFER_OUTSIZE;
-    while (len > s->n) {
-      if (n > len) n = len;
-      if (allwrite(s->op,s->fd,buf,n) == -1) return -1;
-      buf += n;
-      len -= n;
+#endif
+    if (buffer_flush(b)==-1) return -1;
+    if (len>b->a) {
+      if (buffer_stubborn(b->op,b->fd,buf,len,b)<0) return -1;
+      return 0;
     }
   }
-  /* now len <= s->n - s->p */
-  byte_copy(s->x + s->p,len,buf);
-  s->p += len;
+do_memcpy:
+  memcpy(b->x+b->p, buf, len);
+  b->p+=len;
   return 0;
-}
-
-int buffer_putflush(buffer *s,const char *buf,unsigned int len)
-{
-  if (buffer_flush(s) == -1) return -1;
-  return allwrite(s->op,s->fd,buf,len);
-}
-
-int buffer_puts(buffer *s,const char *buf)
-{
-  return buffer_put(s,buf,str_len(buf));
-}
-
-int buffer_putsflush(buffer *s,const char *buf)
-{
-  return buffer_putflush(s,buf,str_len(buf));
 }

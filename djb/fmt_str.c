@@ -1,11 +1,24 @@
 #include "fmt.h"
 
-unsigned int fmt_str(register char* s,register const char* t)
-{
-  register unsigned int len;
-  char ch;
-  len = 0;
-  if (s) { while (ch = t[len]) s[len++] = ch; }
-  else while (t[len]) len++;
-  return len;
+size_t fmt_str(char *out,const char *in) {
+  register char* s=out;
+  register const char* t=in;
+  for (;;) {
+    if (!*t) break;
+                    if (s) { *s=*t; ++s; }
+                                           ++t;
+
+    if (!*t) break;
+                    if (s) { *s=*t; ++s; }
+                                           ++t;
+
+    if (!*t) break;
+                    if (s) { *s=*t; ++s; }
+                                           ++t;
+
+    if (!*t) break;
+                    if (s) { *s=*t; ++s; }
+                                           ++t;
+  }
+  return (size_t)(t-in);
 }

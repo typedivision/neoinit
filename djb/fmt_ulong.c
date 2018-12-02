@@ -1,13 +1,22 @@
 #include "fmt.h"
 
-unsigned int fmt_ulong(register char *s,register unsigned long u)
-{
-  register unsigned int len; register unsigned long q;
-  len = 1; q = u;
-  while (q > 9) { ++len; q /= 10; }
-  if (s) {
-    s += len;
-    do { *--s = '0' + (u % 10); u /= 10; } while(u); /* handles u == 0 */
-  }
+size_t fmt_ulong(char *dest,unsigned long i) {
+  register unsigned long len,tmp,len2;
+  /* first count the number of bytes needed */
+  for (len=1, tmp=i; tmp>9; ++len) tmp/=10;
+  if (dest)
+    for (tmp=i, dest+=len, len2=len+1; --len2; tmp/=10)
+      *--dest = (char)((tmp%10)+'0');
   return len;
 }
+
+#ifdef UNITTEST
+#include <assert.h>
+#include <string.h>
+
+int main() {
+  char buf[100];
+  assert(fmt_ulong(buf,12345)==5 && !memcmp(buf,"12345",5));
+  return 0;
+}
+#endif

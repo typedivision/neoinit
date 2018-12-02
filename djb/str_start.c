@@ -1,13 +1,22 @@
 #include "str.h"
 
-int str_start(register char *s,register char *t)
-{
-  register char x;
-
+/* str_start returns 1 if the b is a prefix of a, 0 otherwise */
+int str_start(const char* a, const char* b) {
+  register const char* s=a;
+  register const char* t=b;
   for (;;) {
-    x = *t++; if (!x) return 1; if (x != *s++) return 0;
-    x = *t++; if (!x) return 1; if (x != *s++) return 0;
-    x = *t++; if (!x) return 1; if (x != *s++) return 0;
-    x = *t++; if (!x) return 1; if (x != *s++) return 0;
+    if (!*t) return 1;
+                       if (*s!=*t) break;
+                                          ++s; ++t;
+    if (!*t) return 1;
+                       if (*s!=*t) break;
+                                          ++s; ++t;
+    if (!*t) return 1;
+                       if (*s!=*t) break;
+                                          ++s; ++t;
+    if (!*t) return 1;
+                       if (*s!=*t) break;
+                                          ++s; ++t;
   }
+  return 0;
 }

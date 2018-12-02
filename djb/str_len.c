@@ -1,14 +1,17 @@
+#undef __dietlibc__
 #include "str.h"
 
-unsigned int str_len(const char *s)
-{
-  register const char *t;
-
-  t = s;
+size_t str_len(const char* in) {
+  register const char* t=in;
   for (;;) {
-    if (!*t) return t - s; ++t;
-    if (!*t) return t - s; ++t;
-    if (!*t) return t - s; ++t;
-    if (!*t) return t - s; ++t;
+    if (!*t) break;
+                    ++t;
+    if (!*t) break;
+                    ++t;
+    if (!*t) break;
+                    ++t;
+    if (!*t) break;
+                    ++t;
   }
+  return (size_t)(t-in);
 }
