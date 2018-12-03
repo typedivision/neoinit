@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <sys/reboot.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "djb/str.h"
 

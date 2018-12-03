@@ -8,15 +8,9 @@
 #include <errno.h>
 #include "djb/fmt.h"
 #include "djb/str.h"
-//#include "djb/buffer.h"
+#include "djb/errmsg.h"
 #define NOVARS
 #include "minit.h"
-
-extern const char *errmsg_argv0;
-
-#define msg(...) err(1,__VA_ARGS__,(char*)0)
-#define carp(...) err(2,__VA_ARGS__,(char*)0)
-#define errmsg_iam(X) errmsg_argv0 = X
 
 static int infd,outfd;
 
@@ -102,7 +96,7 @@ void dumphistory() {
   first=1; last='x';
   write(infd,"h",1);
   for (;;) {
-    int prev,done;
+    int done;
     j=read(outfd,tmp,sizeof(tmp));
     if (j<1) break;
     done=i=0;
@@ -115,7 +109,6 @@ void dumphistory() {
     } else {
       if (!tmp[0] && last=='\n') break;
     }
-    prev=i;
     for (; i<j; ++i)
       if (!tmp[i]) {
 	tmp[i]=done?0:'\n';
@@ -140,7 +133,7 @@ void dumpdependencies(char* service) {
   write(infd,buf,str_len(buf));
   first=1; last='x';
   for (;;) {
-    int prev,done;
+    int done;
     j=read(outfd,tmp,sizeof(tmp));
     if (j<1) break;
     done=i=0;
@@ -153,7 +146,6 @@ void dumpdependencies(char* service) {
     } else {
       if (!tmp[0] && last=='\n') break;
     }
-    prev=i;
     for (; i<j; ++i)
       if (!tmp[i]) {
 	tmp[i]=done?0:'\n';
@@ -275,8 +267,13 @@ int main(int argc,char *argv[]) {
 	      ret=1;
 	    } else if (pid==1)
 	      continue;
-	    else
-	      respawn(argv[i],0) || kill(pid,SIGTERM) || kill(pid,SIGCONT);
+	    else {
+              if (!respawn(argv[i],0)) {
+                if (!kill(pid,SIGTERM)) {
+		  kill(pid,SIGCONT);
+		}
+	      }
+	    }
 	  }
 	  break;
 	case 'u':

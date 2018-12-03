@@ -6,51 +6,10 @@
 #include <errno.h>
 #include "djb/str.h"
 #include "djb/byte.h"
+#include "djb/fmt.h"
+#include "djb/errmsg.h"
 
 extern char **environ;
-extern const char *errmsg_argv0;
-
-#define msg(...) err(1,__VA_ARGS__,(char*)0)
-#define carp(...) err(2,__VA_ARGS__,(char*)0)
-#define die(n,...) do { err(2,__VA_ARGS__,(char*)0); _exit(n); } while(0)
-#define errmsg_iam(X) errmsg_argv0 = X
-
-struct error_table { int n; char *s; };
-
-static struct error_table table[] = {
-  {EACCES,	"Permission denied"},
-  {EINVAL,	"Invalid argument"},
-  {EIO,		"I/O error"},
-  {EISDIR,	"Is a directory"},
-  {ELOOP,	"Too many symbolic links"},
-  {ENAMETOOLONG,	"File name too long"},
-  {ENOENT,	"No such file or directory"},
-  {ENOEXEC,	"Exec format error"},
-  {ENOMEM,	"Out of memory"},
-  {ENOSYS,	"Function not implemented"},
-  {ENOTDIR,	"Not a directory"},
-  {EROFS,	"Read-only file system"},
-  {ETXTBSY,	"Text file busy"},
-  {ESPIPE,	"Illegal seek"},
-  {0,0}
-};
-
-char *error_string(struct error_table *table, int n) /*EXTRACT_INCL*/ {
-  static char y[28];
-  char *x=y;
-  for (; table->s; table++) 
-    if (table->n == n) return table->s;
-
-  x += str_copy(x,"error=");
-  x += fmt_ulong(x,n);
-  *x = 0;
-  return y;
-}
-
-static char *e() { return error_string(table, errno); }
-
-#define carpsys(...) err(2,__VA_ARGS__,": ",e(),(char*)0)
-#define diesys(n,...) do { err(2,__VA_ARGS__,": ",e(),(char*)0); _exit(n); } while(0)
 
 #define MAXENV 256
 char* envp[MAXENV+2];
