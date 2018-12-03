@@ -19,50 +19,54 @@ as published by the Free Software Foundation; either version
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #define USAGE "Usage: killall5 SIGNAL\n"
 #define NOPROC "No processes found - /proc not mounted?\n"
 
-int main(int argc, char **argv)
-{
- struct dirent *dir;
- DIR *dirstream;
- register pid_t pid, sid, mypid, mysid;
- int signal=-1;
- unsigned int sig_sent=0;
+int main(int argc, char **argv) {
+  struct dirent *dir;
+  DIR *dirstream;
+  register pid_t pid, sid, mypid, mysid;
+  int signal = -1;
+  unsigned int sig_sent = 0;
 
- if (argc == 2) {
-  if (argv[1][0] == '-') argv[1]++;
-  signal=atoi(argv[1]);
- }
+  if (argc == 2) {
+    if (argv[1][0] == '-')
+      argv[1]++;
+    signal = atoi(argv[1]);
+  }
 
- if ( (signal < 1) || ( signal > 31) ) { write(2,USAGE,sizeof USAGE - 1); return 1; }
+  if ((signal < 1) || (signal > 31)) {
+    write(2, USAGE, sizeof USAGE - 1);
+    return 1;
+  }
 
+  kill(-1, SIGSTOP);
 
- kill(-1,SIGSTOP);
+  if ((dirstream = opendir("/proc"))) {
 
- if ( (dirstream=opendir("/proc"))) {
+    mypid = getpid();
+    mysid = getsid(0);
 
- mypid=getpid();
- mysid=getsid(0);
+    while ((dir = readdir(dirstream))) {
+      pid = atoi(dir->d_name);
 
-   while ( (dir=readdir(dirstream))){
-      pid=atoi(dir->d_name);
+      if (pid > 1) {
+        sig_sent = 1;
+        sid = getsid(pid);
+        if ((pid != mypid) && (sid != mysid))
+          kill(pid, signal);
+      }
+    }
+  }
 
-       if (pid > 1 ){ 
-        sig_sent=1;
-        sid=getsid(pid);
-         if ( (pid != mypid) &&
-           ( sid !=mysid)) kill(pid,signal);
-       }
-   }
- }
+  kill(-1, SIGCONT);
+  if (!sig_sent) {
+    write(2, NOPROC, sizeof NOPROC - 1);
+    return 1;
+  }
 
- kill(-1,SIGCONT);
- if (!sig_sent) { write(2,NOPROC, sizeof NOPROC -1); return 1; }
-
-return 0;
+  return 0;
 }
-
