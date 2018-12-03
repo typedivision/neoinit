@@ -4,8 +4,6 @@ minit-update serdo
 #CFLAGS=-pipe -march=i386 -fomit-frame-pointer -Os -I../dietlibc/include
 CC=gcc
 CFLAGS=-Wall -W -pipe -fomit-frame-pointer -Os
-CROSS=
-#CROSS=arm-linux-
 LDFLAGS=-s
 MANDIR=/usr/man
 
