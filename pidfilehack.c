@@ -37,17 +37,18 @@ int main(int argc, char *argv[]) {
     return 3;
   }
   do {
-    int fd = open(argv[2], O_RDONLY);
+    int fd = open(argv[2], O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
       static char buf[100] = "-P";
       int len = read(fd, buf + 2, 98);
       close(fd);
       if (len > 0) {
         char *_argv[] = {"msvc", 0, 0, 0};
-        if (buf[len + 1] == '\n')
+        if (buf[len + 1] == '\n') {
           buf[len + 1] = 0;
-        else
+        } else {
           buf[len + 2] = 0;
+        }
         _argv[1] = buf;
         _argv[2] = argv[1];
         /*	printf("execvp %s %s %s\n",_argv[0],_argv[1],_argv[2]); */
@@ -59,7 +60,8 @@ int main(int argc, char *argv[]) {
     }   /* else
         printf("%s not there yet\n",argv[2]); */
     sleep(1);
-    if (++count >= 30)
+    if (++count >= 30) {
       exit(0);
+    }
   } while (1);
 }

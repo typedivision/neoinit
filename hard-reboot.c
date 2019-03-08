@@ -5,9 +5,8 @@
 
 #include "djb/str.h"
 
-#define ABORTMSG "hard-reboot: Aborted.\n"
-#define USAGE                                                                  \
-  "Say \"hard-reboot (RESTART|HALT|POWER_OFF)\" if you really mean it.\n"
+#define ABORTMSG "hard-reboot aborted.\n"
+#define USAGE "Say 'hard-reboot (RESTART|HALT|POWER_OFF)' if you really mean it.\n"
 
 void usage(void) {
   write(2, ABORTMSG, str_len(ABORTMSG));
@@ -16,8 +15,9 @@ void usage(void) {
 }
 
 int main(int argc, char *argv[]) {
-  if (argc != 2)
+  if (argc != 2) {
     usage();
+  }
 
   sync();
   sync();
@@ -32,6 +32,7 @@ int main(int argc, char *argv[]) {
     usage();
   }
 
-  while (1)
+  while (1) {
     sleep(10);
+  }
 }

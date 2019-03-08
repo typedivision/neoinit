@@ -8,20 +8,25 @@ char **split(char *buf, int c, int *len, int plus, int ofs) {
   char **w;
   /* step 1: count tokens */
   char *s;
-  for (s = buf; *s; s++)
-    if (*s == c)
+  for (s = buf; *s; s++) {
+    if (*s == c) {
       n++;
+    }
+  }
   /* step 2: allocate space for pointers */
   v = (char **)malloc((n + plus) * sizeof(char *));
-  if (!v)
+  if (!v) {
     return 0;
+  }
   w = v + ofs;
   *w++ = buf;
   for (s = buf;; s++) {
-    while (*s && *s != c)
+    while (*s && *s != c) {
       s++;
-    if (*s == 0)
+    }
+    if (*s == 0) {
       break;
+    }
     if (*s == c) {
       *s = 0;
       *w++ = s + 1;

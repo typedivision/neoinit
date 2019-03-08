@@ -5,9 +5,10 @@
 #endif
 
 int openreadclose(char *fn, char **buf, unsigned long *len) {
-  int fd = open(fn, O_RDONLY);
-  if (fd < 0)
+  int fd = open(fn, O_RDONLY | O_CLOEXEC);
+  if (fd < 0) {
     return -1;
+  }
   if (!*buf) {
     *len = lseek(fd, 0, SEEK_END);
     lseek(fd, 0, SEEK_SET);
@@ -18,7 +19,8 @@ int openreadclose(char *fn, char **buf, unsigned long *len) {
     }
   }
   *len = read(fd, *buf, *len);
-  if (*len != (unsigned long)-1)
+  if (*len != (unsigned long)-1) {
     (*buf)[*len] = 0;
+  }
   return close(fd);
 }

@@ -57,9 +57,3 @@ If none of the services worked (or none were given), minit will spawn
 the service "default".  The normal way to configure minit is to have
 default be an empty service and just list all the services you want
 minit to start at boot time in default/depends.
-
-Other special services (besides "default") are "ctrlaltdel" and "kbreq".
-ctrlaltdel will be run when the console user presses ctrl-alt-del and is
-meant to reboot the computer.  kbreq is the keyboard request, which
-can be mapped using loadkeys.  On my box, it is on Alt+Arrow-Up.  I use
-it to shut down the computer.

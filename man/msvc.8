@@ -4,7 +4,7 @@ msvc \- control minit
 .SH SYNOPSIS
 .B msvc
 [
-.B \-[uodpchaitko]
+.B \-[uodtko]
 ] [
 .B \-P
 .I pid
@@ -38,26 +38,6 @@ If the service stops, do not restart it.
 Down.
 If the service is running, send it a TERM signal and then a CONT signal.
 After it stops, do not restart it.
-.TP
-.B \-p
-Pause.
-Send the service a STOP signal.
-.TP
-.B \-c
-Continue.
-Send the service a CONT signal.
-.TP
-.B \-h
-Hangup.
-Send the service a HUP signal.
-.TP
-.B \-a
-Alarm.
-Send the service an ALRM signal.
-.TP
-.B \-i
-Interrupt.
-Send the service an INT signal.
 .TP
 .B \-t
 Terminate.
