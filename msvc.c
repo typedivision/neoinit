@@ -123,7 +123,7 @@ void dumphistory() {
     for (; i < j; ++i) {
       if (!tmp[i]) {
         tmp[i] = done ? 0 : '\n';
-        if (i < j && !tmp[i + 1]) {
+        if (i + 1 < j && !tmp[i + 1]) {
           done = 1;
           --j;
         }
@@ -172,7 +172,7 @@ void dumpdependencies(char *service) {
     for (; i < j; ++i) {
       if (!tmp[i]) {
         tmp[i] = done ? 0 : '\n';
-        if (i < j && !tmp[i + 1]) {
+        if (i + 1 < j && !tmp[i + 1]) {
           done = 1;
           --j;
         }
