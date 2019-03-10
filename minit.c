@@ -166,17 +166,51 @@ void handlekilled(pid_t killed) {
     return;
   }
   i = findbypid(killed);
-  // printf("%d exited, idx %d -> service %s\n", killed, i, i >= 0 ? root[i].name : "[unknown]");
-  if (i >= 0) {
-    root[i].pid = 0;
-    if (root[i].respawn) {
-      // printf("restarting %s\n", root[i].name);
-      circsweep();
-      startservice(i, time(0) - root[i].startedat < 1, root[i].father);
-    } else {
-      root[i].startedat = time(0);
-      root[i].pid = 1;
+  // printf("pid %u exited, idx %d (%s)\n", killed, i, i >= 0 ? root[i].name : "[unknown]");
+  if (i < 0) {
+    return;
+  }
+  char *pidfile = 0;
+  unsigned long len;
+  if (!chdir(MINITROOT) && !chdir(root[i].name)) {
+    if (!openreadclose("pidfile", &pidfile, &len)) {
+      for (char *s = pidfile; *s; s++) {
+        if (*s == '\n') {
+          *s = 0;
+          break;
+        }
+      }
+      int fd = open(pidfile, O_RDONLY | O_CLOEXEC);
+      free(pidfile);
+      if (fd >= 0) {
+        char pidbuf[8];
+        len = read(fd, pidbuf, sizeof(pidbuf) - 1);
+        close(fd);
+        if (len > 0) {
+          pidbuf[len] = 0;
+          char *x = pidbuf;
+          unsigned char c;
+          int pid = 0;
+          while ((c = *x++ - '0') < 10) {
+            pid = pid * 10 + c;
+          }
+          if (pid > 0 && !kill(pid, 0)) {
+            // printf("replace idx %d (%s) with pid %u\n", i, root[i].name, pid);
+            root[i].pid = pid;
+            return;
+          }
+        }
+      }
     }
+  }
+  root[i].pid = 0;
+  if (root[i].respawn) {
+    // printf("restarting %s\n", root[i].name);
+    circsweep();
+    startservice(i, time(0) - root[i].startedat < 1, root[i].father);
+  } else {
+    root[i].startedat = time(0);
+    root[i].pid = 1;
   }
 }
 
@@ -258,7 +292,9 @@ again:
     if (fd >= 0) {
       close(fd);
       waitpid(p, 0, 0);
-      return 1;
+      root[service].pid = p;
+      handlekilled(p);
+      return root[service].pid;
     }
     return p;
   }
@@ -291,7 +327,7 @@ int startservice(int service, int pause, int father) {
     return 0;
   }
   root[service].circular = 1;
-  // printf("setting father of %d (%s) to %d (%s)\n", service, root[service].name, father,
+  // printf("setting father of idx %d (%s) to idx %d (%s)\n", service, root[service].name, father,
   //        father >= 0 ? root[father].name : "minit");
   root[service].father = father;
 
@@ -345,11 +381,9 @@ void sulogin() { /* exiting on an initialization failure is not a good idea for 
 static void _puts(const char *s) { write(1, s, str_len(s)); }
 
 void childhandler() {
-  int status;
   pid_t killed;
-  /* printf("childhandler() called from pid %u\n", getpid()); */
   do {
-    killed = waitpid(-1, &status, WNOHANG);
+    killed = waitpid(-1, 0, WNOHANG);
     handlekilled(killed);
   } while (killed && killed != (pid_t)-1);
 }
@@ -483,10 +517,10 @@ int main(int argc, char *argv[]) {
             break;
           case 'd':
             write(outfd, "1:", 2);
-            // printf("looking for father==%d\n", idx);
+            // printf("looking for father == %d\n", idx);
             for (int i = 0; i <= maxprocess; ++i) {
-              // printf("pid of %d(%s) is %u, father is %d\n", i, root[i].name, root[i].pid,
-              //        root[i].father);
+              // printf("pid of idx %d (%s) is %u, father is idx %d\n", i, root[i].name,
+              //        root[i].pid, root[i].father);
               if (root[i].father == idx) {
                 write(outfd, root[i].name, str_len(root[i].name) + 1);
               }

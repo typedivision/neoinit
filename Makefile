@@ -1,4 +1,4 @@
-all: minit msvc pidfilehack hard-reboot killall5 serdo
+all: minit msvc hard-reboot killall5 serdo
 
 #CFLAGS=-pipe -march=i386 -fomit-frame-pointer -Os -I../dietlibc/include
 CC=gcc
@@ -56,9 +56,6 @@ lib/%.o: lib/%.c
 %: %.o
 	$(DIET) $(CROSS)$(CC) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-pidfilehack: pidfilehack.c
-	$(DIET) $(CROSS)$(CC) $(CFLAGS) -o $@ $^
-
 hard-reboot: hard-reboot.c djb/str_len.o
 	$(DIET) $(CROSS)$(CC) $(CFLAGS) -o $@ $^
 
@@ -66,15 +63,14 @@ killall5: killall5.c
 	$(DIET) $(CROSS)$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	rm -f *.o djb/*.o lib/*.o minit msvc pidfilehack hard-reboot killall5 serdo
+	rm -f *.o djb/*.o lib/*.o minit msvc hard-reboot killall5 serdo
 
 install-files:
 	install -d $(DESTDIR)/etc/minit $(DESTDIR)/sbin $(DESTDIR)/bin $(DESTDIR)$(MANDIR)/man8
-	install minit pidfilehack hard-reboot $(DESTDIR)/sbin
+	install minit hard-reboot $(DESTDIR)/sbin
 	install msvc serdo $(DESTDIR)/bin
 	test -f $(DESTDIR)/sbin/init || ln $(DESTDIR)/sbin/minit $(DESTDIR)/sbin/init
-	install -m 644 man/hard-reboot.8 man/minit.8 man/msvc.8 man/pidfilehack.8 man/serdo.8 \
-	  $(DESTDIR)$(MANDIR)/man8
+	install -m 644 man/hard-reboot.8 man/minit.8 man/msvc.8 man/serdo.8 $(DESTDIR)$(MANDIR)/man8
 
 install-fifos:
 	mkfifo -m 600 $(DESTDIR)/etc/minit/in $(DESTDIR)/etc/minit/out
