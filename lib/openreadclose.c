@@ -1,9 +1,8 @@
-#ifndef EMBEDDED
 #include <fcntl.h>
 #include <stdlib.h>
 #include <unistd.h>
-#endif
 
+/* open fd and read file into allocated buffer */
 int openreadclose(char *fn, char **buf, unsigned long *len) {
   int fd = open(fn, O_RDONLY | O_CLOEXEC);
   if (fd < 0) {

@@ -1,5 +1,3 @@
-#include "minit.h"
-
 #include <alloca.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -19,6 +17,8 @@
 #include "djb/fmt.h"
 #include "djb/str.h"
 
+#include "minit.h"
+
 typedef struct {
   char *name;
   pid_t pid;
@@ -35,10 +35,7 @@ static process_t *root;
 static int infd, outfd;
 static int maxprocess = -1;
 static int processalloc;
-
 static int i_am_init;
-
-extern void opendevconsole();
 
 extern int openreadclose(char *fn, char **buf, unsigned long *len);
 extern char **split(char *buf, int c, int *len, int plus, int ofs);
@@ -206,7 +203,6 @@ again:
     if (i_am_init) {
       ioctl(0, TIOCNOTTY, 0);
       setsid();
-      opendevconsole();
       tcsetpgrp(0, getpgrp());
     }
     if (pause) {
@@ -421,7 +417,6 @@ int main(int argc, char *argv[]) {
         childhandler();
         break;
       }
-      opendevconsole();
       _puts("poll failed!\n");
       sulogin();
       /* what should we do if poll fails?! */

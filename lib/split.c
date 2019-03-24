@@ -1,7 +1,7 @@
 #include <stdlib.h>
 
-/* split buf into n strings that are separated by c.  return n as *len.
- * Allocate plus more slots and leave the first ofs of them alone. */
+/* split buf into n strings that are separated by sep, return n as len
+ * allocate plus more slots and leave the first ofs of them alone */
 char **split(char *buf, int c, int *len, int plus, int ofs) {
   int n = 1;
   char **v = 0;

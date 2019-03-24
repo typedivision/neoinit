@@ -1,12 +1,13 @@
-#include "djb/errmsg.h"
-#include "djb/fmt.h"
-#include "djb/str.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "djb/errmsg.h"
+#include "djb/fmt.h"
+#include "djb/str.h"
 
 #include "minit.h"
 
