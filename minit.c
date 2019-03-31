@@ -13,6 +13,7 @@
 #include <time.h>
 #include <unistd.h>
 //#include <stdio.h>
+//#include <mcheck.h>
 
 #include "djb/fmt.h"
 #include "djb/str.h"
@@ -46,6 +47,13 @@ extern char **environ;
 int history[HISTORY];
 
 char **Argv;
+
+/* open rescue shell */
+void sulogin() {
+  char *argv[] = {"sulogin", 0};
+  execve("/sbin/sulogin", argv, environ);
+  _exit(1);
+}
 
 /* return index of service in process data structure or -1 if not found */
 int findservice(char *service) {
@@ -159,6 +167,12 @@ void handlekilled(pid_t killed) {
       saidso = 1;
     }
     if (i_am_init) {
+      for (i = 0; i <= maxprocess; ++i) {
+        free(root[i].name);
+      }
+      free(root);
+      // muntrace();
+      // sulogin();
       exit(0);
     }
   }
@@ -342,10 +356,9 @@ int startservice(int service, int pause, int father) {
   }
   if ((dir = open(".", O_RDONLY | O_CLOEXEC)) >= 0) {
     if (!openreadclose("depends", &s, &len)) {
-      char **deps;
-      int depc, i;
-      deps = split(s, '\n', &depc, 0, 0);
-      for (i = 0; i < depc; i++) {
+      int depc;
+      char **deps = split(s, '\n', &depc, 0, 0);
+      for (int i = 0; i < depc; i++) {
         int Service, blacklisted, j;
         if (deps[i][0] == '#') {
           continue;
@@ -362,6 +375,10 @@ int startservice(int service, int pause, int father) {
           startservice(Service, 0, service);
         }
       }
+      if (deps) {
+        free(deps);
+      }
+      free(s);
       fchdir(dir);
     }
     pid = startnodep(service, pause);
@@ -370,12 +387,6 @@ int startservice(int service, int pause, int father) {
   }
   chdir(MINITROOT);
   return pid;
-}
-
-void sulogin() { /* exiting on an initialization failure is not a good idea for init */
-  char *argv[] = {"sulogin", 0};
-  execve("/sbin/sulogin", argv, environ);
-  _exit(1);
 }
 
 static void _puts(const char *s) { write(1, s, str_len(s)); }
@@ -419,6 +430,8 @@ int main(int argc, char *argv[]) {
 
   fcntl(infd, F_SETFD, FD_CLOEXEC);
   fcntl(outfd, F_SETFD, FD_CLOEXEC);
+
+  //mtrace();
 
   for (int i = 1; i < argc; i++) {
     circsweep();
