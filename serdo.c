@@ -1,6 +1,7 @@
 #include <alloca.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -40,9 +41,11 @@ int envset(char *s) {
 int spawn(char **argv, int last) {
   int i;
   if (str_equal(argv[0], "cd")) {
-    if (chdir(argv[1]) == -1) {
-      carpsys("chdir failed");
-      return -1;
+    if (argv[1]) {
+      if (chdir(argv[1]) == -1) {
+        carpsys("chdir failed");
+        return -1;
+      }
     }
     return 0;
   }
@@ -62,7 +65,10 @@ int spawn(char **argv, int last) {
   if (!i) {
     /* child */
     environ = envp;
-    _exit(execvp(argv[0], argv));
+    if (argv[0]) {
+      _exit(execvp(argv[0], argv));
+    }
+    _exit(1);
   }
   if (waitpid(i, &i, 0) == -1) {
     diesys(1, "waitpid failed");
@@ -83,6 +89,7 @@ int run(char *s, int last) {
     }
   }
   next = argv = alloca((spaces + 1) * sizeof(char *));
+  memset(argv, 0, (spaces + 1) * sizeof(char *));
   while (*s) {
     while (*s && isspace(*s)) {
       ++s;
