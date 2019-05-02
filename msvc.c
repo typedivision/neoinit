@@ -194,12 +194,14 @@ void dumpdependencies(char *service) {
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    msg("usage: msvc [-uodtkogCD] service\n"
+    msg("usage: msvc [-uodRrtkogCD] service\n"
         "       msvc -Ppid service\n"
         "       msvc -H\n"
         " -u\tup; start service with respawn\n"
         " -o\tonce; start service without respawn\n"
         " -d\tdown; disable respawn, stop service\n"
+        " -R\trespawn enable; set service respawn option\n"
+        " -r\trespawn disable; unset service respawn option\n"
         " -t\tterminate; send SIGTERM\n"
         " -k\tkill; send SIGKILL\n"
         " -g\tget; output just the PID\n"
@@ -228,10 +230,12 @@ int main(int argc, char *argv[]) {
           char tmp2[FMT_ULONG];
           char *what;
 
-          if (pid == 0) {
-            what = "down ";
-          } else if (pid == 1) {
+          if (pid == PID_DONE) {
             what = "finished ";
+          } else if (pid == PID_DOWN) {
+            what = "down ";
+          } else if (pid == PID_FAIL) {
+            what = "failed ";
           } else {
             len = fmt_str(tmp, "up (pid ");
             len += fmt_ulong(tmp + len, pid);
@@ -241,8 +245,8 @@ int main(int argc, char *argv[]) {
           tmp2[fmt_ulong(tmp2, ut)] = 0;
           msg(argv[1], ": ", what, tmp2, " seconds");
         } else {
-          char tmp[FMT_ULONG * 2 + 5];
-          len = fmt_ulong(tmp, pid);
+          char tmp[FMT_LONG + FMT_ULONG + 5];
+          len = fmt_long(tmp, pid);
           tmp[len] = ' ';
           ++len;
           len += fmt_ulong(tmp + len, ut);
@@ -250,11 +254,14 @@ int main(int argc, char *argv[]) {
           write(1, tmp, len + 1);
         }
 
-        if (pid == 0) {
+        if (pid == PID_DOWN) {
           return 2;
         }
-        if (pid == 1) {
+        if (pid == PID_DONE) {
           return 3;
+        }
+        if (pid == PID_FAIL) {
+          return 4;
         }
         return 0;
       }
@@ -271,7 +278,7 @@ int main(int argc, char *argv[]) {
         for (i = 2; i < argc; ++i) {
           pid = __readpid(argv[i]);
           if (pid < 2) {
-            carp(argv[i], pid == 1 ? ": service terminated" : ": no such service");
+            carp(argv[i], pid == 0 ? ": no such service" : ": service not running");
             ret = 1;
           } else {
             char tmp[FMT_ULONG];
@@ -303,7 +310,7 @@ int main(int argc, char *argv[]) {
           if (pid == 0) {
             carp(argv[i], ": no such service");
             ret = 1;
-          } else if (pid == 1) {
+          } else if (pid < 2) {
             continue;
           } else {
             if (!respawn(argv[i], 0)) {
@@ -311,6 +318,23 @@ int main(int argc, char *argv[]) {
                 kill(pid, SIGCONT);
               }
             }
+          }
+          /* TODO set service down */
+        }
+        break;
+      case 'R':
+        for (i = 2; i < argc; ++i) {
+          if (respawn(argv[i], 1)) {
+            carp("could not set respawn ", argv[i]);
+            ret = 1;
+          }
+        }
+        break;
+      case 'r':
+        for (i = 2; i < argc; ++i) {
+          if (respawn(argv[i], 0)) {
+            carp("could not unset respawn ", argv[i]);
+            ret = 1;
           }
         }
         break;
@@ -351,11 +375,8 @@ int main(int argc, char *argv[]) {
   dokill:
     for (i = 2; i < argc; i++) {
       pid = __readpid(argv[i]);
-      if (!pid) {
-        carp(argv[i], ": no such service");
-        ret = 1;
-      } else if (pid == 1) {
-        carp(argv[i], ": service not running");
+      if (pid < 2) {
+        carp(argv[i], pid == 0 ? ": no such service" : ": service not running");
         ret = 1;
       } else if (kill(pid, sig)) {
         char tmp[FMT_ULONG];

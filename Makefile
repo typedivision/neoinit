@@ -9,9 +9,9 @@ endif
 
 MANDIR=/usr/man
 
-minit: minit.o lib/split.o lib/openreadclose.o djb/str_len.o djb/fmt_ulong.o
+minit: minit.o lib/split.o lib/openreadclose.o djb/str_len.o djb/fmt_ulong.o djb/fmt_long.o
 
-msvc: msvc.o djb/str_len.o djb/str_start.o djb/fmt_ulong.o djb/fmt_str.o \
+msvc: msvc.o djb/str_len.o djb/str_start.o djb/fmt_ulong.o djb/fmt_long.o djb/fmt_str.o \
 	djb/errmsg_info.o djb/errmsg_warn.o djb/errmsg_iam.o djb/errmsg_write.o djb/errmsg_puts.o
 
 serdo: serdo.o djb/fmt_ulong.c djb/str_copy.o djb/str_chr.o djb/str_diff.o djb/byte_diff.o \

@@ -13,7 +13,8 @@
 #include <time.h>
 #include <unistd.h>
 //#include <stdio.h>
-//#include <mcheck.h>
+
+/* #include <mcheck.h> */
 
 #include "djb/fmt.h"
 #include "djb/str.h"
@@ -28,7 +29,8 @@ typedef struct {
   time_t started_at;
   int sid_father;
   int __stdin, __stdout;
-  int sid_logservice;
+  int sid_log;
+  int sid_setup;
 } process_t;
 
 static process_t *root;
@@ -43,7 +45,7 @@ extern char **split(char *buf, int sep, int *len, int plus, int ofs);
 
 extern char **environ;
 
-#define HISTORY 10
+#define HISTORY 15
 int history[HISTORY];
 
 /* open rescue shell */
@@ -103,6 +105,17 @@ int check_service(char *service) {
   return 0;
 }
 
+int loadservice(char *service);
+
+/* create a service defined in subfolder */
+int loadsubservice(process_t *proc, char *subservice) {
+  char *service = alloca(str_len(proc->name) + str_len(subservice) + 2);
+  strcpy(service, proc->name);
+  strcat(service, "/");
+  strcat(service, subservice);
+  return loadservice(service);
+}
+
 /* load a service into the process data structure and return index or -1 if failed */
 int loadservice(char *service) {
   process_t proc;
@@ -132,11 +145,10 @@ int loadservice(char *service) {
   proc.__stdin = 0;
   proc.__stdout = 1;
 
-  char *logservice = alloca(str_len(proc.name) + 5);
-  strcpy(logservice, proc.name);
-  strcat(logservice, "/log");
-  proc.sid_logservice = loadservice(logservice);
-  if (proc.sid_logservice >= 0) {
+  proc.sid_log = loadsubservice(&proc, "log");
+  proc.sid_setup = loadsubservice(&proc, "setup");
+
+  if (proc.sid_log >= 0) {
     int pipefd[2];
     if (pipe(pipefd) ||
         fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) ||
@@ -144,7 +156,7 @@ int loadservice(char *service) {
       free(proc.name);
       return -1;
     }
-    root[proc.sid_logservice].__stdin = pipefd[0];
+    root[proc.sid_log].__stdin = pipefd[0];
     proc.__stdout = pipefd[1];
   }
   sid = addprocess(&proc);
@@ -159,14 +171,21 @@ int isup(int sid) {
   if (sid < 0) {
     return 0;
   }
-  return (root[sid].pid != 0);
+  return (root[sid].pid && root[sid].pid != PID_DOWN);
+}
+
+/* usage: isrunning(findservice("sshd")), returns nonzero if process is running */
+int isrunning(int sid) {
+  if (sid < 0) {
+    return 0;
+  }
+  return (root[sid].pid > 1);
 }
 
 int startservice(int sid, int pause, int sid_father);
 
-void handlekilled(pid_t killed) {
-  int sid;
-  if (killed == (pid_t)-1) {
+void handlekilled(pid_t killed, const int *status) {
+  if (killed == -1) {
     static int saidso;
     if (!saidso) {
       write(2, "all services exited\n", 21);
@@ -177,16 +196,16 @@ void handlekilled(pid_t killed) {
         free(root[si].name);
       }
       free(root);
-      // muntrace();
-      // sulogin();
+      /* muntrace(); */
+      /* sulogin(); */
       exit(0);
     }
   }
-  if (killed == 0) {
+  if (!killed) {
     return;
   }
-  sid = findbypid(killed);
-  // printf("pid %u exited, sid %d (%s)\n", killed, sid, sid >= 0 ? root[sid].name : "[unknown]");
+  int sid = findbypid(killed);
+  // printf("pid %d exited, sid %d (%s)\n", killed, sid, sid >= 0 ? root[sid].name : "[unknown]");
   if (sid < 0) {
     return;
   }
@@ -210,12 +229,12 @@ void handlekilled(pid_t killed) {
           pidbuf[len] = 0;
           char *x = pidbuf;
           unsigned char c;
-          int pid = 0;
+          pid_t pid = 0;
           while ((c = *x++ - '0') < 10) {
             pid = pid * 10 + c;
           }
           if (pid > 0 && !kill(pid, 0)) {
-            // printf("replace sid %d (%s) with pid %u\n", sid, root[sid].name, pid);
+            // printf("replace sid %d (%s) with pid %d\n", sid, root[sid].name, pid);
             root[sid].pid = pid;
             return;
           }
@@ -223,21 +242,37 @@ void handlekilled(pid_t killed) {
       }
     }
   }
-  root[sid].pid = 0;
-  if (root[sid].respawn) {
-    // printf("restarting %s\n", root[sid].name);
-    circsweep();
-    startservice(sid, time(0) - root[sid].started_at < 1, root[sid].sid_father);
+  root[sid].started_at = time(0);
+  if (status && WIFEXITED(*status) && WEXITSTATUS(*status)) {
+    // printf("failed %s: %d\n", root[sid].name, WEXITSTATUS(*status));
+    root[sid].pid = PID_FAIL;
   } else {
-    root[sid].started_at = time(0);
-    root[sid].pid = 1;
+    // printf("finished %s\n", root[sid].name);
+    root[sid].pid = PID_DONE;
+  }
+  int sid_father = root[sid].sid_father;
+  if (sid_father >= 0 && root[sid_father].sid_setup == sid) {
+    if (root[sid].pid == PID_FAIL) {
+      root[sid_father].started_at = time(0);
+      root[sid_father].pid = PID_FAIL; /* dont start service if setup failed */
+    } else {
+      circsweep();
+      startservice(sid_father, 0, root[sid_father].sid_father);
+    }
+  } else {
+    if (root[sid].respawn) {
+      // printf("restarting %s\n", root[sid].name);
+      circsweep();
+      root[sid].pid = PID_DOWN;
+      startservice(sid, time(0) - root[sid].started_at < 1, root[sid].sid_father);
+    }
   }
 }
 
 /* called from inside the service directory, return the PID or 0 on error */
 pid_t forkandexec(int sid, int pause) {
   int count = 0;
-  pid_t p;
+  pid_t pid;
   int fd;
   unsigned long len = 0;
   char *params = 0;
@@ -245,8 +280,8 @@ pid_t forkandexec(int sid, int pause) {
   int argc = 0;
   char *argv0 = 0;
 again:
-  switch (p = fork()) {
-  case (pid_t)-1:
+  switch (pid = fork()) {
+  case -1:
     if (count > 3) {
       return 0;
     }
@@ -286,11 +321,14 @@ again:
     }
     argv0 = (char *)alloca(PATH_MAX + 1);
     if (!argv || !argv0) {
-      _exit(1);
+      _exit(225);
     }
     if (readlink("run", argv0, PATH_MAX) < 0) {
+      if (errno == ENOENT) {
+        _exit(0);
+      }
       if (errno != EINVAL) {
-        _exit(1); /* not a symbolic link */
+        _exit(227);
       }
       argv0 = strdup("./run");
     }
@@ -303,35 +341,36 @@ again:
     }
     if (root[sid].__stdin != 0) {
       if (dup2(root[sid].__stdin, 0)) {
-        _exit(1);
+        _exit(225);
       }
       if (fcntl(0, F_SETFD, 0)) {
-        _exit(1);
+        _exit(225);
       }
     }
     if (root[sid].__stdout != 1) {
       if (dup2(root[sid].__stdout, 1) || dup2(root[sid].__stdout, 2)) {
-        _exit(1);
+        _exit(225);
       }
       if (fcntl(1, F_SETFD, 0) || fcntl(2, F_SETFD, 0)) {
-        _exit(1);
+        _exit(225);
       }
     }
     for (int i = 3; i < 1024; ++i) {
       close(i);
     }
     execve(argv0, argv, environ);
-    _exit(1);
+    _exit(226);
   default:
     fd = open("sync", O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
       close(fd);
-      waitpid(p, 0, 0);
-      root[sid].pid = p;
-      handlekilled(p);
+      int status = 0;
+      waitpid(pid, &status, 0);
+      root[sid].pid = pid;
+      handlekilled(pid, &status);
       return root[sid].pid;
     }
-    return p;
+    return pid;
   }
 }
 
@@ -367,8 +406,8 @@ int startservice(int sid, int pause, int sid_father) {
   memmove(history + 1, history, sizeof(int) * ((HISTORY)-1));
   history[0] = sid;
 
-  if (root[sid].sid_logservice >= 0) {
-    startservice(root[sid].sid_logservice, pause, sid);
+  if (root[sid].sid_log >= 0) {
+    startservice(root[sid].sid_log, pause, sid);
   }
   if (chdir(MINITROOT) || chdir(root[sid].name)) {
     return -1;
@@ -381,12 +420,12 @@ int startservice(int sid, int pause, int sid_father) {
     if (!openreadclose("depends", &depends, &len)) {
       depv = split(depends, '\n', &depc, 0, 0);
       if (depv) {
-        for (int i = 0; i < depc; i++) {
-          if (depv[i][0] == '#') {
+        for (int di = 0; di < depc; di++) {
+          if (depv[di][0] == '#') {
             continue;
           }
-          int sid_dep = loadservice(depv[i]);
-          if (sid_dep >= 0 && root[sid_dep].pid != 1) {
+          int sid_dep = loadservice(depv[di]);
+          if (sid_dep >= 0 && root[sid_dep].pid != PID_DONE) {
             startservice(sid_dep, 0, sid);
           }
         }
@@ -395,8 +434,12 @@ int startservice(int sid, int pause, int sid_father) {
       free(depends);
       fchdir(dir);
     }
-    pid = startnodep(sid, pause);
-    // printf("started service %s with pid %u\n", root[sid].name, pid);
+    if (root[sid].sid_setup >= 0 && !isup(root[sid].sid_setup)) {
+      pid = startservice(root[sid].sid_setup, pause, sid);
+    } else {
+      pid = startnodep(sid, pause);
+      // printf("started service %s with pid %d\n", root[sid].name, pid);
+    }
     close(dir);
   }
   return pid;
@@ -406,10 +449,11 @@ static void _puts(const char *s) { write(1, s, str_len(s)); }
 
 void childhandler() {
   pid_t killed;
+  int status;
   do {
-    killed = waitpid(-1, 0, WNOHANG);
-    handlekilled(killed);
-  } while (killed && killed != (pid_t)-1);
+    killed = waitpid(-1, &status, WNOHANG);
+    handlekilled(killed, &status);
+  } while (killed && killed != -1);
 }
 
 int main(int argc, char *argv[]) {
@@ -445,7 +489,7 @@ int main(int argc, char *argv[]) {
     nfds = 0;
   }
 
-  // mtrace();
+  /* mtrace(); */
 
   for (int i = 1; i < argc; i++) {
     circsweep();
@@ -493,7 +537,7 @@ int main(int argc, char *argv[]) {
         } else {
           switch (buf[0]) {
           case 'p':
-            write(outfd, buf, fmt_ulong(buf, root[sid].pid));
+            write(outfd, buf, fmt_long(buf, root[sid].pid));
             break;
           case 'r':
             root[sid].respawn = 0;
@@ -502,8 +546,8 @@ int main(int argc, char *argv[]) {
             root[sid].respawn = 1;
             goto ok;
           case 'C':
-            if (kill(root[sid].pid, 0)) {  /* check if still active */
-              handlekilled(root[sid].pid); /* no!?! remove form active list */
+            if (kill(root[sid].pid, 0)) {     /* check if still active */
+              handlekilled(root[sid].pid, 0); /* no!?! remove form active list */
               goto error;
             }
             goto ok;
@@ -527,11 +571,16 @@ int main(int argc, char *argv[]) {
             if (sid < 0) {
               goto error;
             }
-            if (root[sid].pid < 2) {
-              root[sid].pid = 0;
+            if (!isrunning(sid) && !isrunning(root[sid].sid_setup)) {
+              root[sid].started_at = time(0);
+              root[sid].pid = PID_DOWN;
+              int sid_setup = root[sid].sid_setup;
+              if (sid_setup >= 0) {
+                root[sid_setup].started_at = root[sid].started_at;
+                root[sid_setup].pid = PID_DOWN;
+              }
               circsweep();
-              sid = startservice(sid, 0, -1);
-              if (sid == 0) {
+              if (!startservice(sid, 0, -1)) {
                 write(outfd, "0", 1);
                 break;
               }

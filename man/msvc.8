@@ -39,6 +39,14 @@ Down.
 If the service is running, send it a TERM signal and then a CONT signal.
 After it stops, do not restart it.
 .TP
+.B \-R
+Enable Respawn.
+Set respawn option. This does not start/stop the service.
+.TP
+.B \-r
+Disable Respawn.
+Unset respawn option. This does not start/stop the service.
+.TP
 .B \-t
 Terminate.
 Send the service a TERM signal.
