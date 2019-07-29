@@ -4,7 +4,7 @@ CC ?= gcc
 CFLAGS = -Wall -fomit-frame-pointer -Os
 
 ifneq ($(DEBUG),)
-CFLAGS += -g
+CFLAGS += -g -DDEBUG
 endif
 
 MANDIR=/usr/man

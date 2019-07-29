@@ -12,9 +12,9 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-//#include <stdio.h>
-
-/* #include <mcheck.h> */
+#ifdef DEBUG
+#include <stdio.h>
+#endif
 
 #include "djb/fmt.h"
 #include "djb/str.h"
@@ -26,7 +26,7 @@ typedef struct {
   pid_t pid;
   char respawn;
   char circular;
-  time_t started_at;
+  time_t changed_at;
   int sid_father;
   int __stdin, __stdout;
   int sid_log;
@@ -43,10 +43,18 @@ static int iam_init;
 #define HISTORY 15
 static int history[HISTORY];
 
-extern int openreadclose(char *fn, char **buf, unsigned long *len);
-extern char **split(char *buf, int sep, int *len, int plus, int ofs);
+static void wout(const char *s) { write(1, s, str_len(s)); }
+static void werr(const char *s) { write(2, s, str_len(s)); }
+#ifdef DEBUG
+#define dbg(...) printf(__VA_ARGS__)
+#else
+#define dbg(...)
+#endif
 
 extern char **environ;
+
+extern int openreadclose(char *fn, char **buf, unsigned long *len);
+extern char **split(char *buf, int sep, int *len, int plus, int ofs);
 
 /* open rescue shell */
 void sulogin() {
@@ -131,7 +139,7 @@ int loadservice(char *service) {
   } else {
     proc.respawn = 0;
   }
-  proc.started_at = 0;
+  proc.changed_at = 0;
   proc.circular = 0;
   proc.__stdin = 0;
   proc.__stdout = 1;
@@ -157,12 +165,12 @@ int loadservice(char *service) {
   return sid;
 }
 
-/* usage: isup(findservice("sshd")), returns nonzero if process is up */
+/* usage: isup(findservice("sshd")), returns nonzero if process is running, finished or failed */
 int isup(int sid) {
   if (sid < 0) {
     return 0;
   }
-  return (root[sid].pid && root[sid].pid != PID_DOWN);
+  return (root[sid].pid && root[sid].pid != PID_DOWN && root[sid].pid != PID_SETUP);
 }
 
 /* usage: isrunning(findservice("sshd")), returns nonzero if process is running */
@@ -177,26 +185,21 @@ int startservice(int sid, int pause, int sid_father);
 
 void handlekilled(pid_t killed, const int *status) {
   if (killed == -1) {
-    static int saidso;
-    if (!saidso) {
-      write(2, "all services exited\n", 21);
-      saidso = 1;
-    }
+    wout("minit: all services exited\n");
     if (iam_init) {
-      for (int si = 0; si <= maxprocess; ++si) {
-        free(root[si].name);
-      }
-      free(root);
-      /* muntrace(); */
       /* sulogin(); */
-      exit(0);
     }
+    for (int si = 0; si <= maxprocess; ++si) {
+      free(root[si].name);
+    }
+    free(root);
+    exit(0);
   }
   if (!killed) {
     return;
   }
   int sid = findbypid(killed);
-  // printf("pid %d exited, sid %d (%s)\n", killed, sid, sid >= 0 ? root[sid].name : "[unknown]");
+  dbg("[minit] pid %d exited: sid %d %s\n", killed, sid, sid >= 0 ? root[sid].name : "[unknown]");
   if (sid < 0) {
     return;
   }
@@ -225,7 +228,7 @@ void handlekilled(pid_t killed, const int *status) {
             pid = pid * 10 + c;
           }
           if (pid > 0 && !kill(pid, 0)) {
-            // printf("replace sid %d (%s) with pid %d\n", sid, root[sid].name, pid);
+            dbg("[%d:%s] pidfile found: setting pid to %d\n", sid, root[sid].name, pid);
             root[sid].pid = pid;
             return;
           }
@@ -233,29 +236,34 @@ void handlekilled(pid_t killed, const int *status) {
       }
     }
   }
-  root[sid].started_at = time(0);
   if (status && WIFEXITED(*status) && WEXITSTATUS(*status)) {
-    // printf("failed %s: %d\n", root[sid].name, WEXITSTATUS(*status));
-    root[sid].pid = PID_FAIL;
+    dbg("[%d:%s] FAILED ret %d\n", sid, root[sid].name, WEXITSTATUS(*status));
+    root[sid].pid = PID_FAILED;
   } else {
-    // printf("finished %s\n", root[sid].name);
-    root[sid].pid = PID_DONE;
+    dbg("[%d:%s] FINISHED\n", sid, root[sid].name);
+    root[sid].pid = PID_FINISHED;
   }
+  time_t sid_started_at = root[sid].changed_at;
+  root[sid].changed_at = time(0); /* set stop time */
+
   int sid_father = root[sid].sid_father;
   if (sid_father >= 0 && root[sid_father].sid_setup == sid) {
-    if (root[sid].pid == PID_FAIL) {
-      root[sid_father].started_at = time(0);
-      root[sid_father].pid = PID_FAIL; /* dont start service if setup failed */
+    if (root[sid].pid == PID_FAILED) {
+      /* dont start service if setup failed */
+      dbg("[%d:%s] SETUP_FAILED\n", sid_father, root[sid_father].name);
+      root[sid_father].pid = PID_SETUP_FAILED;
+      root[sid_father].changed_at = root[sid].changed_at;
     } else {
       circsweep();
       startservice(sid_father, 0, root[sid_father].sid_father);
     }
   } else {
     if (root[sid].respawn) {
-      // printf("restarting %s\n", root[sid].name);
-      circsweep();
+      dbg("[%d:%s] restarting\n", sid, root[sid].name);
+      dbg("[%d:%s] DOWN\n", sid, root[sid].name);
       root[sid].pid = PID_DOWN;
-      startservice(sid, time(0) - root[sid].started_at < 1, root[sid].sid_father);
+      circsweep();
+      startservice(sid, time(0) - sid_started_at < 1, root[sid].sid_father);
     }
   }
 }
@@ -367,15 +375,17 @@ again:
 
 /* start a service, return nonzero on error */
 int startnodep(int sid, int pause) {
-  /* step 1: see if the process is already up */
   if (isup(sid)) {
     return 0;
   }
-  /* step 2: fork and exec service, put PID in data structure */
   if (chdir(MINITROOT) || chdir(root[sid].name)) {
     return -1;
   }
-  root[sid].started_at = time(0);
+
+  memmove(history + 1, history, sizeof(int) * ((HISTORY)-1));
+  history[0] = sid;
+
+  root[sid].changed_at = time(0); /* set start time */
   root[sid].pid = forkandexec(sid, pause);
   return root[sid].pid;
 }
@@ -390,12 +400,10 @@ int startservice(int sid, int pause, int sid_father) {
     return 0;
   }
   root[sid].circular = 1;
-  // printf("setting father of sid %d (%s) to sid %d (%s)\n", sid, root[sid].name, sid_father,
-  //        sid_father >= 0 ? root[sid_father].name : "minit");
   root[sid].sid_father = sid_father;
-
-  memmove(history + 1, history, sizeof(int) * ((HISTORY)-1));
-  history[0] = sid;
+  dbg("[%d:%s] starting\n", sid, root[sid].name);
+  dbg("[%d:%s] setting father to sid %d %s\n", sid, root[sid].name, sid_father,
+      sid_father >= 0 ? root[sid_father].name : "minit");
 
   if (root[sid].sid_log >= 0) {
     startservice(root[sid].sid_log, pause, sid);
@@ -415,7 +423,8 @@ int startservice(int sid, int pause, int sid_father) {
             continue;
           }
           int sid_dep = loadservice(depv[di]);
-          if (sid_dep >= 0 && root[sid_dep].pid != PID_DONE) {
+          if (sid_dep >= 0 && !isup(sid_dep)) {
+            dbg("[%d:%s] depends on %s\n", sid, root[sid].name, root[sid_dep].name);
             startservice(sid_dep, 0, sid);
           }
         }
@@ -425,17 +434,18 @@ int startservice(int sid, int pause, int sid_father) {
       fchdir(dir);
     }
     if (root[sid].sid_setup >= 0 && !isup(root[sid].sid_setup)) {
+      dbg("[%d:%s] SETUP\n", sid, root[sid].name);
+      root[sid].pid = PID_SETUP;
+      root[sid].changed_at = time(0);
       pid = startservice(root[sid].sid_setup, pause, sid);
     } else {
       pid = startnodep(sid, pause);
-      // printf("started service %s with pid %d\n", root[sid].name, pid);
+      dbg("[%d:%s] RUNNING pid %d\n", sid, root[sid].name, pid);
     }
     close(dir);
   }
   return pid;
 }
-
-static void _puts(const char *s) { write(1, s, str_len(s)); }
 
 void childhandler() {
   pid_t killed;
@@ -465,7 +475,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (infd < 0 || outfd < 0) {
-    _puts("minit: could not open " MINITROOT "/in,out}\n");
+    werr("minit: could not open " NEORCROOT "/in,out}\n");
     sulogin();
     nfds = 0;
   } else {
@@ -474,12 +484,10 @@ int main(int argc, char *argv[]) {
   pfd.events = POLLIN;
 
   if (fcntl(infd, F_SETFD, FD_CLOEXEC) || fcntl(outfd, F_SETFD, FD_CLOEXEC)) {
-    _puts("minit: could not set up " MINITROOT "/{in,out}\n");
+    werr("minit: could not set up " NEORCROOT "/{in,out}\n");
     sulogin();
     nfds = 0;
   }
-
-  /* mtrace(); */
 
   for (int i = 1; i < argc; i++) {
     circsweep();
@@ -502,7 +510,7 @@ int main(int argc, char *argv[]) {
       /* the system clock was reset, compensate */
       long diff = last - now;
       for (int j = 0; j <= maxprocess; ++j) {
-        root[j].started_at -= diff;
+        root[j].changed_at -= diff;
       }
     }
     last = now;
@@ -512,7 +520,7 @@ int main(int argc, char *argv[]) {
         childhandler();
         break;
       }
-      _puts("poll failed!\n");
+      werr("minit: poll failed!\n");
       sulogin();
       /* what should we do if poll fails?! */
       break;
@@ -562,12 +570,15 @@ int main(int argc, char *argv[]) {
               goto error;
             }
             if (!isrunning(sid) && !isrunning(root[sid].sid_setup)) {
-              root[sid].started_at = time(0);
+              /* start service including setup */
+              dbg("[%d:%s] DOWN\n", sid, root[sid].name);
               root[sid].pid = PID_DOWN;
+              root[sid].changed_at = time(0);
               int sid_setup = root[sid].sid_setup;
               if (sid_setup >= 0) {
-                root[sid_setup].started_at = root[sid].started_at;
+                dbg("[%d:%s] DOWN\n", sid_setup, root[sid_setup].name);
                 root[sid_setup].pid = PID_DOWN;
+                root[sid_setup].changed_at = root[sid].changed_at;
               }
               circsweep();
               if (!startservice(sid, 0, -1)) {
@@ -579,14 +590,12 @@ int main(int argc, char *argv[]) {
             write(outfd, "1", 1);
             break;
           case 'u':
-            write(outfd, buf, fmt_ulong(buf, time(0) - root[sid].started_at));
+            write(outfd, buf, fmt_ulong(buf, time(0) - root[sid].changed_at));
             break;
           case 'd':
             write(outfd, "1:", 2);
-            // printf("looking for sid father == %d\n", sid);
+            dbg("[minit] looking for father = sid %d\n", sid);
             for (int si = 0; si <= maxprocess; ++si) {
-              // printf("pid of sid %d (%s) is %d, father sid %d\n", si, root[si].name,
-              //        root[si].pid, root[si].sid_father);
               if (root[si].sid_father == sid) {
                 write(outfd, root[si].name, str_len(root[si].name) + 1);
               }

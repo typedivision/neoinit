@@ -234,12 +234,16 @@ int main(int argc, char *argv[]) {
           char tmp2[FMT_ULONG];
           char *what;
 
-          if (pid == PID_DONE) {
+          if (pid == PID_FINISHED) {
             what = "finished ";
           } else if (pid == PID_DOWN) {
             what = "down ";
-          } else if (pid == PID_FAIL) {
+          } else if (pid == PID_SETUP) {
+            what = "setup ";
+          } else if (pid == PID_FAILED) {
             what = "failed ";
+          } else if (pid == PID_SETUP_FAILED) {
+            what = "setup failed ";
           } else {
             len = fmt_str(tmp, "up (pid ");
             len += fmt_ulong(tmp + len, pid);
@@ -261,11 +265,14 @@ int main(int argc, char *argv[]) {
         if (pid == PID_DOWN) {
           return 2;
         }
-        if (pid == PID_DONE) {
+        if (pid == PID_FINISHED) {
           return 3;
         }
-        if (pid == PID_FAIL) {
+        if (pid == PID_FAILED) {
           return 4;
+        }
+        if (pid == PID_SETUP_FAILED) {
+          return 5;
         }
         return 0;
       }
