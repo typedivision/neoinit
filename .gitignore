@@ -1,7 +1,6 @@
 *.o
-minit
-msvc
-pidfilehack
+neoinit
+neorc
 hard-reboot
 killall5
 serdo

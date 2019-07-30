@@ -1,4 +1,4 @@
-all: minit msvc hard-reboot killall5 serdo
+all: neoinit neorc hard-reboot killall5 serdo
 
 CC ?= gcc
 CFLAGS = -Wall -fomit-frame-pointer -Os
@@ -9,9 +9,9 @@ endif
 
 MANDIR=/usr/man
 
-minit: minit.o lib/split.o lib/openreadclose.o djb/str_len.o djb/fmt_ulong.o djb/fmt_long.o
+neoinit: neoinit.o lib/split.o lib/openreadclose.o djb/str_len.o djb/fmt_ulong.o djb/fmt_long.o
 
-msvc: msvc.o djb/str_len.o djb/str_start.o djb/fmt_ulong.o djb/fmt_long.o djb/fmt_str.o \
+neorc: neorc.o djb/str_len.o djb/str_start.o djb/fmt_ulong.o djb/fmt_long.o djb/fmt_str.o \
 	djb/errmsg_info.o djb/errmsg_warn.o djb/errmsg_iam.o djb/errmsg_write.o djb/errmsg_puts.o
 
 serdo: serdo.o djb/fmt_ulong.c djb/str_copy.o djb/str_chr.o djb/str_diff.o djb/byte_diff.o \
@@ -34,16 +34,16 @@ lib/%.o: lib/%.c
 	$(CC) $(LDFLAGS) -o $@ $^
 
 clean:
-	rm -f *.o djb/*.o lib/*.o minit msvc hard-reboot killall5 serdo
+	rm -f *.o djb/*.o lib/*.o neoinit neorc hard-reboot killall5 serdo
 
 install-files:
-	install -d $(DESTDIR)/etc/minit $(DESTDIR)/sbin $(DESTDIR)/bin $(DESTDIR)$(MANDIR)/man8
-	install minit hard-reboot $(DESTDIR)/sbin
-	install msvc serdo $(DESTDIR)/bin
-	test -f $(DESTDIR)/sbin/init || ln $(DESTDIR)/sbin/minit $(DESTDIR)/sbin/init
-	install -m 644 man/hard-reboot.8 man/minit.8 man/msvc.8 man/serdo.8 $(DESTDIR)$(MANDIR)/man8
+	install -d $(DESTDIR)/etc/neorc $(DESTDIR)/sbin $(DESTDIR)/bin $(DESTDIR)$(MANDIR)/man8
+	install neoinit hard-reboot $(DESTDIR)/sbin
+	install neorc serdo $(DESTDIR)/bin
+	test -f $(DESTDIR)/sbin/init || ln $(DESTDIR)/sbin/neoinit $(DESTDIR)/sbin/init
+	install -m 644 man/hard-reboot.8 man/neoinit.8 man/neorc.8 man/serdo.8 $(DESTDIR)$(MANDIR)/man8
 
 install-fifos:
-	mkfifo -m 600 $(DESTDIR)/etc/minit/in $(DESTDIR)/etc/minit/out
+	mkfifo -m 600 $(DESTDIR)/etc/neorc/in $(DESTDIR)/etc/neorc/out
 
 install: install-files install-fifos

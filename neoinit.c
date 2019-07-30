@@ -19,7 +19,7 @@
 #include "djb/fmt.h"
 #include "djb/str.h"
 
-#include "minit.h"
+#include "neoinit.h"
 
 typedef struct {
   char *name;
@@ -125,7 +125,7 @@ int loadservice(char *service) {
   if (sid >= 0) {
     return sid;
   }
-  if (chdir(MINITROOT) || chdir(service)) {
+  if (chdir(NIROOT) || chdir(service)) {
     return -1;
   }
   if (!(proc.name = strdup(service))) {
@@ -185,7 +185,7 @@ int startservice(int sid, int pause, int sid_father);
 
 void handlekilled(pid_t killed, const int *status) {
   if (killed == -1) {
-    wout("minit: all services exited\n");
+    wout("neoinit: all services exited\n");
     if (iam_init) {
       /* sulogin(); */
     }
@@ -199,13 +199,13 @@ void handlekilled(pid_t killed, const int *status) {
     return;
   }
   int sid = findbypid(killed);
-  dbg("[minit] pid %d exited: sid %d %s\n", killed, sid, sid >= 0 ? root[sid].name : "[unknown]");
+  dbg("[neoinit] pid %d exited: sid %d %s\n", killed, sid, sid >= 0 ? root[sid].name : "");
   if (sid < 0) {
     return;
   }
   unsigned long len = 0;
   char *pidfile = 0;
-  if (!chdir(MINITROOT) && !chdir(root[sid].name)) {
+  if (!chdir(NIROOT) && !chdir(root[sid].name)) {
     if (!openreadclose("pidfile", &pidfile, &len)) {
       for (char *s = pidfile; *s; s++) {
         if (*s == '\n') {
@@ -378,7 +378,7 @@ int startnodep(int sid, int pause) {
   if (isup(sid)) {
     return 0;
   }
-  if (chdir(MINITROOT) || chdir(root[sid].name)) {
+  if (chdir(NIROOT) || chdir(root[sid].name)) {
     return -1;
   }
 
@@ -403,12 +403,12 @@ int startservice(int sid, int pause, int sid_father) {
   root[sid].sid_father = sid_father;
   dbg("[%d:%s] starting\n", sid, root[sid].name);
   dbg("[%d:%s] setting father to sid %d %s\n", sid, root[sid].name, sid_father,
-      sid_father >= 0 ? root[sid_father].name : "minit");
+      sid_father >= 0 ? root[sid_father].name : "neoinit");
 
   if (root[sid].sid_log >= 0) {
     startservice(root[sid].sid_log, pause, sid);
   }
-  if (chdir(MINITROOT) || chdir(root[sid].name)) {
+  if (chdir(NIROOT) || chdir(root[sid].name)) {
     return -1;
   }
   if ((dir = open(".", O_RDONLY | O_CLOEXEC)) >= 0) {
@@ -466,8 +466,8 @@ int main(int argc, char *argv[]) {
     history[i] = -1;
   }
 
-  infd = open(MINITROOT "/in", O_RDWR | O_CLOEXEC);
-  outfd = open(MINITROOT "/out", O_RDWR | O_NONBLOCK | O_CLOEXEC);
+  infd = open(NIROOT "/in", O_RDWR | O_CLOEXEC);
+  outfd = open(NIROOT "/out", O_RDWR | O_NONBLOCK | O_CLOEXEC);
 
   if (getpid() == 1) {
     iam_init = 1;
@@ -475,7 +475,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (infd < 0 || outfd < 0) {
-    werr("minit: could not open " NEORCROOT "/in,out}\n");
+    werr("neoinit: could not open " NIROOT "/{in,out}\n");
     sulogin();
     nfds = 0;
   } else {
@@ -484,7 +484,7 @@ int main(int argc, char *argv[]) {
   pfd.events = POLLIN;
 
   if (fcntl(infd, F_SETFD, FD_CLOEXEC) || fcntl(outfd, F_SETFD, FD_CLOEXEC)) {
-    werr("minit: could not set up " NEORCROOT "/{in,out}\n");
+    werr("neoinit: could not set up " NIROOT "/{in,out}\n");
     sulogin();
     nfds = 0;
   }
@@ -520,7 +520,7 @@ int main(int argc, char *argv[]) {
         childhandler();
         break;
       }
-      werr("minit: poll failed!\n");
+      werr("neoinit: poll failed!\n");
       sulogin();
       /* what should we do if poll fails?! */
       break;
@@ -594,7 +594,7 @@ int main(int argc, char *argv[]) {
             break;
           case 'd':
             write(outfd, "1:", 2);
-            dbg("[minit] looking for father = sid %d\n", sid);
+            dbg("[neoinit] looking for father = sid %d\n", sid);
             for (int si = 0; si <= maxprocess; ++si) {
               if (root[si].sid_father == sid) {
                 write(outfd, root[si].name, str_len(root[si].name) + 1);

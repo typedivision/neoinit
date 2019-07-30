@@ -1,12 +1,12 @@
-Each service gets its own directory under /etc/minit (change this in the
-source, it's a #define right at the start of minit.c).
+Each service gets its own directory under /etc/neorc (change this in the
+source, it's a #define right at the start of neoinit.h).
 
 Each service directory can contain the following files/symlinks:
 
   depends
 
     a plain text file containing a service name per line.
-    Example: /etc/minit/sshd/depends could contain "network".
+    Example: /etc/neorc/sshd/depends could contain "network".
     Each of these services will be started before this service is
     started.  If you need to wait for static initializations to
     complete, use the sync flag.
@@ -28,18 +28,18 @@ Each service directory can contain the following files/symlinks:
 
   respawn
 
-    touch this file to make minit respawn the process when it dies.
+    touch this file to make neoinit respawn the process when it dies.
     This should be touched for getty and network servers.
 
   sync
 
-    touch this file to make minit wait until the service ends.  sync is
+    touch this file to make neoinit wait until the service ends.  sync is
     mutually exclusive with respawn.  This is meant for static
     initializations like "ifconfig".
 
   log
 
-    if this directory exists, it is taken as service and minit creates
+    if this directory exists, it is taken as service and neoinit creates
     a pipe between stdout of this service and stdin of the log service.
     If the log service can not be started, this service will block if it
     writes to stdout.  File descriptors will be reused, i.e. if the log
@@ -49,11 +49,11 @@ Each service directory can contain the following files/symlinks:
 Please see http://cr.yp.to/daemontools/multilog.html for a very good
 logging tool.
 
-minit will try to run the command line arguments as services.  The
+neoinit will try to run the command line arguments as services.  The
 kernel passes its arguments to init.  That means you can for example
-have a service /etc/minit/sos-shell that starts a /bin/sh and then use
-LILO to boot "bzImage sos-shell".  minit will then run that service.
-If none of the services worked (or none were given), minit will spawn
-the service "default".  The normal way to configure minit is to have
+have a service /etc/neorc/sos-shell that starts a /bin/sh and then use
+LILO to boot "bzImage sos-shell".  neoinit will then run that service.
+If none of the services worked (or none were given), neoinit will spawn
+the service "default".  The normal way to configure neoinit is to have
 default be an empty service and just list all the services you want
-minit to start at boot time in default/depends.
+neoinit to start at boot time in default/depends.

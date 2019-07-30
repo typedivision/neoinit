@@ -8,8 +8,8 @@ umount_fail() {
 }
 
 # shut down "respawn" services
-for s in $(find /etc/minit -type f -name respawn | sed 's@/respawn$@@'); do
-  msvc -d "$s"
+for s in $(find /etc/neorc -type f -name respawn | sed 's@/respawn$@@'); do
+  neorc -d "$s"
 done
 
 # send sigterm to all processes

@@ -9,7 +9,7 @@
 #include "djb/fmt.h"
 #include "djb/str.h"
 
-#include "minit.h"
+#include "neoinit.h"
 
 static int infd, outfd;
 
@@ -17,8 +17,8 @@ static char buf[BUFSIZE + 1];
 
 int addservice(char *service) {
   char *x;
-  if (str_start(service, MINITROOT "/")) {
-    service += sizeof(MINITROOT "/") - 1;
+  if (str_start(service, NIROOT "/")) {
+    service += sizeof(NIROOT "/") - 1;
   }
   x = service + str_len(service) - 1;
   while (x > service && *x == '/') {
@@ -116,7 +116,7 @@ void dumphistory() {
     done = i = 0;
     if (first) {
       if (tmp[0] == '0') {
-        carp("minit compiled without history support");
+        carp("neoinit compiled without history support");
         return;
       }
       i += 2;
@@ -198,26 +198,28 @@ void dumpdependencies(char *service) {
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    msg("usage: msvc [-uodRrtkogCD] service\n"
-        "       msvc -Ppid service\n"
-        "       msvc -H\n"
-        " -u\tup; start service with respawn\n"
-        " -o\tonce; start service without respawn\n"
-        " -d\tdown; disable respawn, stop service\n"
-        " -R\trespawn enable; set service respawn option\n"
-        " -r\trespawn disable; unset service respawn option\n"
-        " -t\tterminate; send SIGTERM\n"
-        " -k\tkill; send SIGKILL\n"
-        " -g\tget; output just the PID\n"
-        " -C\tclear; remove service form active list\n"
+    msg("neoinit run control\n"
+        "usage: neorc [-uodRrtkogCD] service\n"
+        "       neorc -Ppid service\n"
+        "       neorc -H\n"
+        "options:\n"
+        " -u\tup: start service with respawn\n"
+        " -o\tonce: start service without respawn\n"
+        " -d\tdown: disable respawn, stop service\n"
+        " -R\trespawn enable: set service respawn option\n"
+        " -r\trespawn disable: unset service respawn option\n"
+        " -t\tterminate: send SIGTERM\n"
+        " -k\tkill: send SIGKILL\n"
+        " -g\tget: output just the PID\n"
+        " -C\tclear: remove service form active list\n"
         " -D\tprint services started as dependency\n"
-        " -Ppid\tset PID of service (for pidfilehack)\n"
+        " -Ppid\tset PID of service\n"
         " -H\tprint last n respawned services\n");
     return 0;
   }
-  errmsg_iam("msvc");
-  infd = open(MINITROOT "/in", O_WRONLY | O_CLOEXEC);
-  outfd = open(MINITROOT "/out", O_RDONLY | O_CLOEXEC);
+  errmsg_iam("neorc");
+  infd = open(NIROOT "/in", O_WRONLY | O_CLOEXEC);
+  outfd = open(NIROOT "/out", O_RDONLY | O_CLOEXEC);
   if (infd >= 0) {
     while (lockf(infd, F_LOCK, 1)) {
       carp("could not acquire lock");
@@ -414,6 +416,6 @@ int main(int argc, char *argv[]) {
     }
     return ret;
   }
-  carp("minit: could not open " MINITROOT "/in or " MINITROOT "/out");
+  carp("neoinit: could not open " NIROOT "/in or " NIROOT "/out");
   return 1;
 }

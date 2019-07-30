@@ -1,0 +1,25 @@
+.TH neoinit 8
+.SH NAME
+neoinit \- a service run and supervising daemon, can be used as UNIX process no 1
+.SH SYNOPSIS
+.B neoinit
+
+.SH DESCRIPTION
+.B neoinit
+to use neoinit as system init add the parameter
+\fIinit=/sbin/neoinit\fR
+to your kernel command line.
+
+.SH USAGE
+neoinit will by default do nothing except starting the service defined in
+.I /etc/neorc/default
+which usually contains a file named
+.I depends
+specifying which other services are to be started at bootup.
+
+.SH AUTHOR
+neoinit is based on minit written by Felix von Leitner.
+.I http://www.fefe.de/minit/
+
+.SH "SEE ALSO"
+neorc(8)

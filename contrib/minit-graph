@@ -2,7 +2,7 @@
 
 # Contributed by Tommi Virtanen <tv@debian.org>
 # Try:
-# minit-graph /etc/minit >foo.dot
+# minit-graph /etc/neorc >foo.dot
 # dot -Tps -o foo.ps foo.dot
 # gv foo.ps
 
@@ -24,7 +24,7 @@ try:
 except IndexError:
     dir = '.'
 
-print "digraph minit {"
+print "digraph neoinit {"
 
 for svc in os.listdir(dir):
     if svc=="in" or svc=="out":
