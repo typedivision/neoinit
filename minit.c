@@ -40,13 +40,13 @@ static int maxprocess = -1;
 static int processalloc;
 static int iam_init;
 
+#define HISTORY 15
+static int history[HISTORY];
+
 extern int openreadclose(char *fn, char **buf, unsigned long *len);
 extern char **split(char *buf, int sep, int *len, int plus, int ofs);
 
 extern char **environ;
-
-#define HISTORY 15
-int history[HISTORY];
 
 /* open rescue shell */
 void sulogin() {
@@ -96,15 +96,6 @@ int addprocess(process_t *proc) {
   return maxprocess;
 }
 
-/* check for valid service name */
-/* coverity[ +tainted_string_sanitize_content : arg-0 ] */
-int check_service(char *service) {
-  if (str_len(service) > PATH_MAX) {
-    return -1;
-  }
-  return 0;
-}
-
 int loadservice(char *service);
 
 /* create a service defined in subfolder */
@@ -119,7 +110,7 @@ int loadsubservice(process_t *proc, char *subservice) {
 /* load a service into the process data structure and return index or -1 if failed */
 int loadservice(char *service) {
   process_t proc;
-  if (*service == 0 || check_service(service)) {
+  if (*service == 0 || str_len(service) > PATH_MAX) {
     return -1;
   }
   int sid = findservice(service);
@@ -323,6 +314,7 @@ again:
     if (!argv || !argv0) {
       _exit(225);
     }
+    memset(argv0, 0, PATH_MAX + 1);
     if (readlink("run", argv0, PATH_MAX) < 0) {
       if (errno == ENOENT) {
         _exit(0);
@@ -332,7 +324,6 @@ again:
       }
       argv0 = strdup("./run");
     }
-    argv0[PATH_MAX] = 0;
     argv[0] = strrchr(argv0, '/');
     if (argv[0]) {
       argv[0]++;
@@ -415,10 +406,9 @@ int startservice(int sid, int pause, int sid_father) {
   if ((dir = open(".", O_RDONLY | O_CLOEXEC)) >= 0) {
     unsigned long len = 0;
     char *depends = 0;
-    char **depv = 0;
-    int depc = 0;
     if (!openreadclose("depends", &depends, &len)) {
-      depv = split(depends, '\n', &depc, 0, 0);
+      int depc = 0;
+      char **depv = split(depends, '\n', &depc, 0, 0);
       if (depv) {
         for (int di = 0; di < depc; di++) {
           if (depv[di][0] == '#') {
@@ -504,7 +494,7 @@ int main(int argc, char *argv[]) {
 
   for (;;) {
     int len;
-    char buf[1501];
+    char buf[BUFSIZE + 1];
     time_t now;
     childhandler();
     now = time(0);
@@ -527,7 +517,7 @@ int main(int argc, char *argv[]) {
       /* what should we do if poll fails?! */
       break;
     case 1:
-      len = read(infd, buf, 1500);
+      len = read(infd, buf, BUFSIZE);
       if (len > 1) {
         int sid = -1, tmp;
         buf[len] = 0;

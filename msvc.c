@@ -13,9 +13,9 @@
 
 static int infd, outfd;
 
-static char buf[1500];
+static char buf[BUFSIZE + 1];
 
-void addservice(char *service) {
+int addservice(char *service) {
   char *x;
   if (str_start(service, MINITROOT "/")) {
     service += sizeof(MINITROOT "/") - 1;
@@ -25,14 +25,15 @@ void addservice(char *service) {
     *x = 0;
     --x;
   }
-  strncpy(buf + 1, service, 1400);
-  buf[1400] = 0;
+  strncpy(buf + 1, service, BUFSIZE - 1);
+  buf[BUFSIZE] = 0;
+  return str_len(buf);
 }
 
 int addreadwrite(char *service) {
-  addservice(service);
-  write(infd, buf, str_len(buf));
-  return read(outfd, buf, 1500);
+  int buf_len = addservice(service);
+  write(infd, buf, buf_len);
+  return read(outfd, buf, BUFSIZE);
 }
 
 /* return PID, 0 if error */
@@ -60,11 +61,14 @@ int setpid(char *service, pid_t pid) {
   char *tmp;
   int len;
   buf[0] = 'P';
-  addservice(service);
-  tmp = buf + str_len(buf) + 1;
+  int buf_len = addservice(service);
+  if (buf_len + 10 > BUFSIZE) {
+    return 0;
+  }
+  tmp = buf + buf_len + 1;
   tmp[fmt_ulong(tmp, pid)] = 0;
-  write(infd, buf, str_len(buf) + str_len(tmp) + 2);
-  len = read(outfd, buf, 1500);
+  write(infd, buf, buf_len + str_len(tmp) + 2);
+  len = read(outfd, buf, BUFSIZE);
   return (len != 1 || buf[0] == '0');
 }
 
@@ -148,8 +152,8 @@ void dumpdependencies(char *service) {
   int i, j;
   char first, last;
   buf[0] = 'd';
-  addservice(service);
-  write(infd, buf, str_len(buf));
+  int buf_len = addservice(service);
+  write(infd, buf, buf_len);
   first = 1;
   last = 'x';
   for (;;) {
