@@ -1,7 +1,9 @@
 #ifndef NEOINIT_H
 #define NEOINIT_H
 
+#ifndef NIROOT
 #define NIROOT "/etc/neoinit"
+#endif
 
 #define BUFSIZE 1500
 

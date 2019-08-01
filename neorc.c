@@ -130,7 +130,7 @@ void dumphistory() {
         tmp[i] = done ? 0 : '\n';
         if (i + 1 < j && !tmp[i + 1]) {
           done = 1;
-          --j;
+          j = i + 1;
         }
       }
     }
@@ -179,7 +179,7 @@ void dumpdependencies(char *service) {
         tmp[i] = done ? 0 : '\n';
         if (i + 1 < j && !tmp[i + 1]) {
           done = 1;
-          --j;
+          j = i + 1;
         }
       }
     }
@@ -214,7 +214,7 @@ int main(int argc, char *argv[]) {
         " -H\thistory. print last started services");
     return 0;
   }
-  errmsg_iam("neorc");
+  // errmsg_iam("neorc");
   infd = open(NIROOT "/in", O_WRONLY | O_CLOEXEC);
   outfd = open(NIROOT "/out", O_RDONLY | O_CLOEXEC);
   if (infd >= 0) {
@@ -225,54 +225,27 @@ int main(int argc, char *argv[]) {
     if (argc == 2 && argv[1][1] != 'H') {
       pid_t pid = __readpid(argv[1]);
       if (buf[0] != '0') {
-        unsigned long len;
         unsigned long ut = uptime(argv[1]);
+        char *what;
+        char since[FMT_ULONG];
 
-        if (isatty(1)) {
-          char tmp[FMT_ULONG + 20];
-          char tmp2[FMT_ULONG];
-          char *what;
-
-          if (pid == PID_FINISHED) {
-            what = "finished ";
-          } else if (pid == PID_DOWN) {
-            what = "down ";
-          } else if (pid == PID_SETUP) {
-            what = "setup ";
-          } else if (pid == PID_FAILED) {
-            what = "failed ";
-          } else if (pid == PID_SETUP_FAILED) {
-            what = "setup failed ";
-          } else {
-            len = fmt_str(tmp, "up (pid ");
-            len += fmt_ulong(tmp + len, pid);
-            tmp[len + fmt_str(tmp + len, ") ")] = 0;
-            what = tmp;
-          }
-          tmp2[fmt_ulong(tmp2, ut)] = 0;
-          msg(argv[1], ": ", what, tmp2, " seconds");
+        if (pid > 1) {
+          what = "UP ";
+        } else if (pid == PID_FINISHED) {
+          what = "FINISHED ";
+        } else if (pid == PID_DOWN) {
+          what = "DOWN ";
+        } else if (pid == PID_SETUP) {
+          what = "SETUP ";
+        } else if (pid == PID_FAILED) {
+          what = "FAILED ";
+        } else if (pid == PID_SETUP_FAILED) {
+          what = "SETUP_FAILED ";
         } else {
-          char tmp[FMT_LONG + FMT_ULONG + 5];
-          len = fmt_long(tmp, pid);
-          tmp[len] = ' ';
-          ++len;
-          len += fmt_ulong(tmp + len, ut);
-          tmp[len] = '\n';
-          write(1, tmp, len + 1);
+          what = "UNKNOWN ";
         }
-
-        if (pid == PID_DOWN) {
-          return 2;
-        }
-        if (pid == PID_FINISHED) {
-          return 3;
-        }
-        if (pid == PID_FAILED) {
-          return 4;
-        }
-        if (pid == PID_SETUP_FAILED) {
-          return 5;
-        }
+        since[fmt_ulong(since, ut)] = 0;
+        msg(argv[1], " ", what, since, "s");
         return 0;
       }
       carp(argv[1], ": no such service");
@@ -334,7 +307,7 @@ int main(int argc, char *argv[]) {
       case 'R':
         for (i = 2; i < argc; ++i) {
           if (respawn(argv[i], 1)) {
-            carp("could not set respawn ", argv[i]);
+            carp("could not set respawn for ", argv[i]);
             ret = 1;
           }
         }
@@ -342,7 +315,7 @@ int main(int argc, char *argv[]) {
       case 'r':
         for (i = 2; i < argc; ++i) {
           if (respawn(argv[i], 0)) {
-            carp("could not unset respawn ", argv[i]);
+            carp("could not unset respawn for ", argv[i]);
             ret = 1;
           }
         }

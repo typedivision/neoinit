@@ -1,0 +1,712 @@
+#!/bin/sh
+
+t_setup_once () {
+  set +u
+  if ! [ "$NIROOT" ]; then
+    echo "NIROOT not set, run make check!" >&2
+    return 1
+  fi
+}
+
+t_teardown () {
+  find $NIROOT -not -type p -mindepth 1 -delete
+}
+
+test_start_default () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+EOF
+  chmod +x $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+EOF
+}
+
+test_start_default_symlink () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/script <<EOF
+#!/bin/sh
+echo default
+EOF
+  chmod +x $NIROOT/default/script
+  ln -s $NIROOT/default/script $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+EOF
+}
+
+test_start_service () {
+  mkdir $NIROOT/service
+  cat > $NIROOT/service/run <<EOF
+#!/bin/sh
+echo service
+EOF
+  chmod +x $NIROOT/service/run
+
+  debug/neoinit service | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:service] starting
+[0:service] RUNNING
+service
+[0:service] FINISHED
+EOF
+}
+
+test_start_no_run () {
+  mkdir $NIROOT/default
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+[0:default] FINISHED
+EOF
+}
+
+test_start_fail_no_x () {
+  mkdir $NIROOT/default
+  touch $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+[0:default] FAILED 226
+EOF
+}
+
+test_start_fail_broken_link () {
+  mkdir $NIROOT/default
+  ln -s /not_exist $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+[0:default] FAILED 226
+EOF
+}
+
+test_start_fail_exit () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+exit 9
+EOF
+  chmod +x $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FAILED 9
+EOF
+}
+
+test_start_fail_exit_link () {
+  mkdir $NIROOT/default
+  ln -s /usr/bin/false $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+[0:default] FAILED 1
+EOF
+}
+
+test_setup () {
+  mkdir -p $NIROOT/default/setup
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+EOF
+  cat > $NIROOT/default/setup/run <<EOF
+#!/bin/sh
+echo setup
+sleep 1
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/default/setup/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[1:default] starting
+[1:default] SETUP
+[0:default/setup] starting
+[0:default/setup] RUNNING
+setup
+[0:default/setup] FINISHED
+[1:default] starting
+[1:default] RUNNING
+default
+[1:default] FINISHED
+EOF
+}
+
+test_setup_failed () {
+  mkdir -p $NIROOT/default/setup
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+EOF
+  cat > $NIROOT/default/setup/run <<EOF
+#!/bin/sh
+echo setup
+sleep 1
+exit 9
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/default/setup/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[1:default] starting
+[1:default] SETUP
+[0:default/setup] starting
+[0:default/setup] RUNNING
+setup
+[0:default/setup] FAILED 9
+[1:default] SETUP_FAILED
+EOF
+}
+
+test_depends () {
+  mkdir $NIROOT/default $NIROOT/init
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+EOF
+  cat > $NIROOT/init/run <<EOF
+#!/bin/sh
+sleep 1
+echo init
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/init/run
+  echo "init" > $NIROOT/default/depends
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] depends: init
+[1:init] starting
+[1:init] RUNNING
+[0:default] RUNNING
+default
+init
+[1:init] FINISHED
+[0:default] FINISHED
+EOF
+}
+
+test_params () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+echo $@
+EOF
+  chmod +x $NIROOT/default/run
+  cat > $NIROOT/default/params <<EOF
+-x
+--opt
+param
+EOF
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+-x --opt param
+[0:default] FINISHED
+EOF
+}
+
+test_respawn () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+trap 'exit' SIGTERM
+echo $$ > pid
+echo default
+for i in $(seq 10); do sleep 1; done
+EOF
+  chmod +x $NIROOT/default/run
+  touch $NIROOT/default/respawn
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  kill -9 $(cat $NIROOT/default/pid)
+  sleep 6
+  debug/neorc -d default
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+[0:default] restarting
+[0:default] DOWN
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+EOF
+}
+
+test_pidfile () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+sleep 6 &
+echo $! > pid
+echo default
+EOF
+  chmod +x $NIROOT/default/run
+  echo "$NIROOT/default/pid" > $NIROOT/default/pidfile
+
+  debug/neoinit | grep -v "pid " | sed 's/ [0-9]*$//' >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] pidfile
+[0:default] FINISHED
+EOF
+}
+
+test_sync () {
+  mkdir $NIROOT/default $NIROOT/init
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+EOF
+  cat > $NIROOT/init/run <<EOF
+#!/bin/sh
+echo init
+sleep 3
+echo "init done"
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/init/run
+  echo "init" > $NIROOT/default/depends
+  touch $NIROOT/init/sync
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] depends: init
+[1:init] starting
+[1:init] RUNNING
+init
+init done
+[1:init] FINISHED
+[0:default] RUNNING
+default
+[0:default] FINISHED
+EOF
+}
+
+test_rc_once () {
+  mkdir $NIROOT/default $NIROOT/init
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+sleep 3
+EOF
+  cat > $NIROOT/init/run <<EOF
+#!/bin/sh
+echo init
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/init/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -o init
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[1:init] DOWN
+[1:init] starting
+[1:init] RUNNING
+init
+[0:default] FINISHED
+[1:init] FINISHED
+EOF
+}
+
+test_rc_down () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+trap 'echo sigterm; exit' SIGTERM
+echo default
+for i in $(seq 10); do sleep 1; done
+echo "no sigterm"
+EOF
+  chmod +x $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -d default
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+sigterm
+[0:default] FINISHED
+EOF
+}
+
+test_rc_up_down () {
+  mkdir $NIROOT/default $NIROOT/init
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+sleep 3
+EOF
+  cat > $NIROOT/init/run <<'EOF'
+#!/bin/sh
+trap 'exit' SIGTERM
+echo $$ > pid
+echo init
+for i in $(seq 10); do sleep 1; done
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/init/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -u init
+  sleep 1
+  kill -9 $(cat $NIROOT/init/pid)
+  sleep 6
+  debug/neorc -d init
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[1:init] DOWN
+[1:init] starting
+[1:init] RUNNING
+init
+[0:default] FINISHED
+[1:init] FINISHED
+[1:init] restarting
+[1:init] DOWN
+[1:init] starting
+[1:init] RUNNING
+init
+[1:init] FINISHED
+EOF
+}
+
+test_rc_up_down_multi () {
+  mkdir $NIROOT/default $NIROOT/init
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+sleep 3
+EOF
+  cat > $NIROOT/init/run <<'EOF'
+#!/bin/sh
+sleep 1
+echo init
+for i in $(seq 10); do sleep 1; done
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/init/run
+  cp -a $NIROOT/init $NIROOT/init2
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -u init init2
+  sleep 5
+  debug/neorc -d init init2
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[1:init] DOWN
+[1:init] starting
+[1:init] RUNNING
+[2:init2] DOWN
+[2:init2] starting
+[2:init2] RUNNING
+init
+init
+[0:default] FINISHED
+[1:init] FINISHED
+[2:init2] FINISHED
+EOF
+}
+
+test_rc_set_respawn () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+echo $$ > pid
+echo default
+for i in $(seq 10); do sleep 1; done
+EOF
+  chmod +x $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -R default
+  kill -9 $(cat $NIROOT/default/pid)
+  sleep 6
+  debug/neorc -d default
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+[0:default] restarting
+[0:default] DOWN
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+EOF
+}
+
+test_rc_unset_respawn () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+echo default
+sleep 3
+EOF
+  chmod +x $NIROOT/default/run
+  touch $NIROOT/default/respawn
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -r default
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+EOF
+}
+
+test_rc_term () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+trap 'echo sigterm; exit' SIGTERM
+echo default
+for i in $(seq 10); do sleep 1; done
+echo "no sigterm"
+EOF
+  chmod +x $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -t default
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+sigterm
+[0:default] FINISHED
+EOF
+}
+
+test_rc_kill () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+echo default
+for i in $(seq 10); do sleep 1; done
+echo "not killed"
+EOF
+  chmod +x $NIROOT/default/run
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out &
+  sleep 1
+  debug/neorc -k default
+  wait
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] RUNNING
+default
+[0:default] FINISHED
+EOF
+}
+
+test_rc_get () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+echo $$ > pid
+sleep 3
+EOF
+  chmod +x $NIROOT/default/run
+
+  debug/neoinit &
+  sleep 1
+  pid=$(cat $NIROOT/default/pid)
+  t_expect_out "debug/neorc -g default" "$pid"
+  wait
+}
+
+test_rc_get_not_running () {
+  mkdir $NIROOT/default $NIROOT/init
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+echo $$ > pid
+sleep 3
+EOF
+  chmod +x $NIROOT/default/run
+  touch $NIROOT/init/run
+  echo "init" > $NIROOT/default/depends
+
+  debug/neoinit &
+  sleep 1
+  t_call -perr debug/neorc -g init
+  t_expect_eq '$t_CALL_RET' 1
+  t_expect_eq '$t_CALL_OUT' "init: service not running"
+  wait
+}
+
+test_rc_clear () {
+  mkdir -p $NIROOT/default $NIROOT/ok
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+sleep 5
+neorc -C ok
+EOF
+  chmod +x $NIROOT/default/run
+  ln -s /usr/bin/true $NIROOT/ok/run
+  echo ok > $NIROOT/default/depends
+
+  PATH=$PWD/debug:$PATH
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] depends: ok
+[1:ok] starting
+[1:ok] RUNNING
+[0:default] RUNNING
+[1:ok] FINISHED
+[1:ok] DOWN
+[0:default] FINISHED
+EOF
+}
+
+test_rc_history () {
+  mkdir -p $NIROOT/default $NIROOT/init $NIROOT/service
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+neorc -H
+EOF
+  chmod +x $NIROOT/default/run
+  ln -s /usr/bin/true $NIROOT/init/run
+  ln -s /usr/bin/true $NIROOT/service/run
+  {
+    echo init
+    echo service
+  } > $NIROOT/default/depends
+
+  PATH=$PWD/debug:$PATH
+  debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+default
+service
+init
+EOF
+}
+
+test_rc_dependencies () {
+  mkdir -p $NIROOT/default $NIROOT/init $NIROOT/service
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+neorc -D default
+neorc -D init
+EOF
+  chmod +x $NIROOT/default/run
+  ln -s /usr/bin/true $NIROOT/init/run
+  ln -s /usr/bin/true $NIROOT/service/run
+  {
+    echo init
+    echo service
+  } > $NIROOT/default/depends
+
+  PATH=$PWD/debug:$PATH
+  debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+init
+service
+
+EOF
+}
+
+test_rc_no_opt () {
+  for d in default ok down nok fail/setup; do
+    mkdir -p $NIROOT/$d
+  done
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+neorc -C down
+{
+  neorc default
+  neorc down
+  neorc ok
+  neorc nok
+  neorc fail
+} | sed 's/ [0-9]s//'
+EOF
+  chmod +x $NIROOT/default/run
+  ln -s /usr/bin/true $NIROOT/ok/run
+  ln -s /usr/bin/true $NIROOT/down/run
+  ln -s /usr/bin/false $NIROOT/nok/run
+  ln -s /usr/bin/false $NIROOT/fail/setup/run
+  {
+    echo ok
+    echo down
+    echo nok
+    echo fail
+  } > $NIROOT/default/depends
+
+  PATH=$PWD/debug:$PATH
+  debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+default UP
+down DOWN
+ok FINISHED
+nok FAILED
+fail SETUP_FAILED
+EOF
+}
+
+test_rc_fail_not_found () {
+  mkdir $NIROOT/default
+  ln -s /usr/bin/true $NIROOT/default/run
+
+  debug/neoinit &
+  t_call -perr debug/neorc -o init
+  t_expect_eq '$t_CALL_RET' 1
+  t_expect_eq '$t_CALL_OUT' "could not start init"
+  wait
+}
+
+. test-again

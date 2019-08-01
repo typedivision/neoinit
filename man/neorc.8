@@ -15,9 +15,8 @@ is a directory name relative to /etc/neorc
 .SH OPTIONS
 If no option is given,
 .B neorc
-will just print a small diagnostic message to stdout, saying if the
-service is up, down, finished or failed, which PID it has if it is up,
-and for how long it has been in this state.
+will just print a small diagnostic message to stdout, saying if the service
+is up, down, finished or failed, and for how long it has been in that state.
 .TP 5
 .B \-o
 Once.
@@ -87,11 +86,6 @@ Generally,
 returns 0 if everything is ok or 1 if an error has occurred (could not
 open /etc/neorc/in or /etc/neorc/out or there is no service with the
 given name).
-.PP
-In the diagnostic mode, it will exit 0 if the service is up,
-2 if it is down or 3 if it is finished, 4 if it is finished but has failed
-(e.g. the service \fBrun\fR program file was not found)
-and 5 if its setup service has failed.
 
 .SH AUTHOR
 .B neorc

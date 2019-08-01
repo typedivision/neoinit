@@ -43,10 +43,12 @@ static int iam_init;
 #define HISTORY 15
 static int history[HISTORY];
 
-static void wout(const char *s) { write(1, s, str_len(s)); }
+// static void wout(const char *s) { write(1, s, str_len(s)); }
 static void werr(const char *s) { write(2, s, str_len(s)); }
 #ifdef DEBUG
-#define dbg(...) printf(__VA_ARGS__)
+#define dbg(...)                                                                                   \
+  printf(__VA_ARGS__);                                                                             \
+  fflush(stdout);
 #else
 #define dbg(...)
 #endif
@@ -101,6 +103,7 @@ int addprocess(process_t *proc) {
     root = rootext;
   }
   memmove(&root[++maxprocess], proc, sizeof(process_t));
+  // dbg("[%d:%s] created\n", maxprocess, root[maxprocess].name);
   return maxprocess;
 }
 
@@ -217,7 +220,7 @@ void handlekilled(pid_t killed, const int *status) {
             pid = pid * 10 + c;
           }
           if (pid > 0 && !kill(pid, 0)) {
-            dbg("[%d:%s] pidfile found: setting pid to %d\n", sid, root[sid].name, pid);
+            dbg("[%d:%s] pidfile %d\n", sid, root[sid].name, pid);
             root[sid].pid = pid;
             return;
           }
@@ -226,7 +229,7 @@ void handlekilled(pid_t killed, const int *status) {
     }
   }
   if (status && WIFEXITED(*status) && WEXITSTATUS(*status)) {
-    dbg("[%d:%s] FAILED ret %d\n", sid, root[sid].name, WEXITSTATUS(*status));
+    dbg("[%d:%s] FAILED %d\n", sid, root[sid].name, WEXITSTATUS(*status));
     root[sid].pid = PID_FAILED;
   } else {
     dbg("[%d:%s] FINISHED\n", sid, root[sid].name);
@@ -271,7 +274,7 @@ again:
   switch (pid = fork()) {
   case -1:
     if (count > 3) {
-      return 0;
+      return -1;
     }
     sleep(++count * 2);
     goto again;
@@ -349,17 +352,17 @@ again:
     execve(argv0, argv, environ);
     _exit(226);
   default:
+    dbg("[%d:%s] pid %d\n", sid, root[sid].name, pid);
+    root[sid].pid = pid;
     fd = open("sync", O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
       close(fd);
       int status = 0;
       waitpid(pid, &status, 0);
-      root[sid].pid = pid;
       root[sid].respawn = 0;
       handlekilled(pid, &status);
-      return root[sid].pid;
     }
-    return pid;
+    return 0;
   }
 }
 
@@ -375,14 +378,13 @@ int startnodep(int sid, int pause) {
   memmove(history + 1, history, sizeof(int) * ((HISTORY)-1));
   history[0] = sid;
 
+  dbg("[%d:%s] RUNNING\n", sid, root[sid].name);
   root[sid].changed_at = time(0); /* set start time */
-  root[sid].pid = forkandexec(sid, pause);
-  return root[sid].pid;
+  return forkandexec(sid, pause);
 }
 
 int startservice(int sid, int pause, int sid_father) {
-  int dir;
-  pid_t pid = 0;
+  int dir = -1;
   if (sid < 0) {
     return 0;
   }
@@ -392,8 +394,8 @@ int startservice(int sid, int pause, int sid_father) {
   root[sid].circular = 1;
   root[sid].sid_father = sid_father;
   dbg("[%d:%s] starting\n", sid, root[sid].name);
-  dbg("[%d:%s] setting father to sid %d %s\n", sid, root[sid].name, sid_father,
-      sid_father >= 0 ? root[sid_father].name : "neoinit");
+  // dbg("[%d:%s] parent %d %s\n", sid, root[sid].name, sid_father,
+  //     sid_father >= 0 ? root[sid_father].name : "neoinit");
 
   if (root[sid].sid_log >= 0) {
     startservice(root[sid].sid_log, pause, sid);
@@ -409,12 +411,12 @@ int startservice(int sid, int pause, int sid_father) {
       char **depv = split(depends, '\n', &depc, 0, 0);
       if (depv) {
         for (int di = 0; di < depc; di++) {
-          if (depv[di][0] == '#') {
+          if (depv[di][0] == 0 || depv[di][0] == '#') {
             continue;
           }
+          dbg("[%d:%s] depends: %s\n", sid, root[sid].name, depv[di]);
           int sid_dep = loadservice(depv[di]);
           if (sid_dep >= 0 && !isup(sid_dep)) {
-            dbg("[%d:%s] depends on %s\n", sid, root[sid].name, root[sid_dep].name);
             startservice(sid_dep, 0, sid);
           }
         }
@@ -423,18 +425,19 @@ int startservice(int sid, int pause, int sid_father) {
       free(depends);
       fchdir(dir);
     }
+    int started = -1;
     if (root[sid].sid_setup >= 0 && !isup(root[sid].sid_setup)) {
       dbg("[%d:%s] SETUP\n", sid, root[sid].name);
       root[sid].pid = PID_SETUP;
       root[sid].changed_at = time(0);
-      pid = startservice(root[sid].sid_setup, pause, sid);
+      started = startservice(root[sid].sid_setup, pause, sid);
     } else {
-      pid = startnodep(sid, pause);
-      dbg("[%d:%s] RUNNING pid %d\n", sid, root[sid].name, pid);
+      started = startnodep(sid, pause);
     }
     close(dir);
+    return started;
   }
-  return pid;
+  return -1;
 }
 
 void childhandler() {
@@ -542,7 +545,7 @@ int main(int argc, char *argv[]) {
     case 1:
       len = read(infd, buf, BUFSIZE);
       if (len > 1) {
-        int sid = -1, tmp;
+        int sid = -1;
         buf[len] = 0;
         if (buf[0] != 's' && ((sid = findservice(buf + 1)) < 0) && strcmp(buf, "d-") != 0) {
         error:
@@ -559,7 +562,7 @@ int main(int argc, char *argv[]) {
             root[sid].respawn = 1;
             goto ok;
           case 'C':
-            if (kill(root[sid].pid, 0)) {
+            if (isrunning(sid) || root[sid].pid == PID_SETUP) {
               goto error;
             }
             dbg("[%d:%s] DOWN\n", sid, root[sid].name);
@@ -575,16 +578,16 @@ int main(int argc, char *argv[]) {
           case 'P': {
             char *x = buf + str_len(buf) + 1;
             unsigned char c;
-            tmp = 0;
+            pid_t pid = 0;
             while ((c = *x++ - '0') < 10) {
-              tmp = tmp * 10 + c;
+              pid = pid * 10 + c;
             }
-            if (tmp > 0) {
-              if (kill(tmp, 0)) {
+            if (pid > 0) {
+              if (kill(pid, 0)) {
                 goto error;
               }
             }
-            root[sid].pid = tmp;
+            root[sid].pid = pid;
             goto ok;
           }
           case 's':
@@ -604,9 +607,8 @@ int main(int argc, char *argv[]) {
                 root[sid_setup].changed_at = root[sid].changed_at;
               }
               circsweep();
-              if (!startservice(sid, 0, -1)) {
-                write(outfd, "0", 1);
-                break;
+              if (startservice(sid, 0, -1)) {
+                goto error;
               }
             }
           ok:
@@ -616,14 +618,20 @@ int main(int argc, char *argv[]) {
             write(outfd, buf, fmt_ulong(buf, time(0) - root[sid].changed_at));
             break;
           case 'd':
+            len = 0;
             write(outfd, "1:", 2);
             dbg("[neoinit] looking for father = sid %d\n", sid);
             for (int si = 0; si <= maxprocess; ++si) {
               if (root[si].sid_father == sid) {
                 write(outfd, root[si].name, str_len(root[si].name) + 1);
+                len = 1;
               }
             }
-            write(outfd, "\0", 2);
+            if (!len) {
+              write(outfd, "\0\0", 2);
+            } else {
+              write(outfd, "\0", 1);
+            }
             break;
           }
         }
@@ -635,7 +643,7 @@ int main(int argc, char *argv[]) {
               write(outfd, root[history[i]].name, str_len(root[history[i]].name) + 1);
             }
           }
-          write(outfd, "\0", 2);
+          write(outfd, "\0", 1);
         }
       }
       break;

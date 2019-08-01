@@ -12,8 +12,8 @@ DESCRIPTION
 
 OPTIONS
        If no option is given, neorc will just print a small diagnostic  message  to  stdout,
-       saying  if the service is up, down, finished or failed, which PID it has if it is up,
-       and for how long it has been in this state.
+       saying  if  the service is up, down, finished or failed, and for how long it has been
+       in that state.
 
        -o   Once.  If the service is not running, start it.  If it stops, do not restart it.
 
@@ -50,10 +50,6 @@ OPTIONS
 EXIT STATUS
        Generally,  neorc  returns 0 if everything is ok or 1 if an error has occurred (could
        not open /etc/neorc/in or /etc/neorc/out or there is no service with the given name).
-
-       In the diagnostic mode, it will exit 0 if the service is up, 2 if it is down or 3  if
-       it is finished, 4 if it is finished but has failed (e.g. the service run program file
-       was not found) and 5 if its setup service has failed.
 
 AUTHOR
        neorc is based on msvc written by Felix von Leitner.  http://www.fefe.de/minit/

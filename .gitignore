@@ -4,3 +4,6 @@ neorc
 hard-reboot
 killall5
 serdo
+debug/
+test/test-again
+test/etc
