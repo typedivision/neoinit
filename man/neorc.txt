@@ -1,0 +1,64 @@
+neorc(8)                           System Manager's Manual                          neorc(8)
+
+NAME
+       neorc - neoinit run control
+
+SYNOPSIS
+       neorc [OPTIONS] SERVICE...
+
+DESCRIPTION
+       neorc  is  the management interface to neoinit.  SERVICE is a directory name relative
+       to /etc/neorc (can also include /etc/neorc/ in the service name).
+
+OPTIONS
+       If no option is given, neorc will just print a small diagnostic  message  to  stdout,
+       saying  if the service is up, down, finished or failed, which PID it has if it is up,
+       and for how long it has been in this state.
+
+       -o   Once.  If the service is not running, start it.  If it stops, do not restart it.
+
+       -u   Up.  If the service is not running, start it.  If it stops, restart it.
+
+       -d   Down.  If the service is running, send it a TERM signal and then a CONT  signal.
+            After it stops, do not restart it.
+
+       -R   Enable respawn.  Set respawn option.  This does not start/stop the service.
+
+       -r   Disable respawn.  Unset respawn option.  This does not start/stop the service.
+
+       -t   Terminate.  Send the service a TERM signal.
+
+       -k   Kill.  Send the service a KILL signal.
+
+       -g   Get PID.  Just print the PID of the service if it is running.
+
+       -C   Clear.  If the service is finished, reset its state.  This is useful if a depen‐
+            dency of a service should be started again together with that service.
+
+       -P pid
+            Set PID.  Tell neoinit the PID of the service.  This is useful for services that
+            fork themselves in the background with a new PID to supervise.
+
+       -D   Print  dependencies.   This  will  print the names of all the services that were
+            started because this services depended on them.  Please note that  this  is  not
+            done recursively, only direct dependencies are listed.
+
+       -H   Print  history.   This will print the names of the last spawned processes.  This
+            can be helpful if you see a process looping  (initialization  fails  and  it  is
+            restarting all the time).
+
+EXIT STATUS
+       Generally,  neorc  returns 0 if everything is ok or 1 if an error has occurred (could
+       not open /etc/neorc/in or /etc/neorc/out or there is no service with the given name).
+
+       In the diagnostic mode, it will exit 0 if the service is up, 2 if it is down or 3  if
+       it is finished, 4 if it is finished but has failed (e.g. the service run program file
+       was not found) and 5 if its setup service has failed.
+
+AUTHOR
+       neorc is based on msvc written by Felix von Leitner.  http://www.fefe.de/minit/
+
+SEE ALSO
+       neoinit(8)
+
+                                                                                    neorc(8)

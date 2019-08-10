@@ -184,17 +184,6 @@ int isrunning(int sid) {
 int startservice(int sid, int pause, int sid_father);
 
 void handlekilled(pid_t killed, const int *status) {
-  if (killed == -1) {
-    wout("neoinit: all services exited\n");
-    if (iam_init) {
-      /* sulogin(); */
-    }
-    for (int si = 0; si <= maxprocess; ++si) {
-      free(root[si].name);
-    }
-    free(root);
-    exit(0);
-  }
   if (!killed) {
     return;
   }
@@ -366,6 +355,7 @@ again:
       int status = 0;
       waitpid(pid, &status, 0);
       root[sid].pid = pid;
+      root[sid].respawn = 0;
       handlekilled(pid, &status);
       return root[sid].pid;
     }
@@ -449,11 +439,36 @@ int startservice(int sid, int pause, int sid_father) {
 
 void childhandler() {
   pid_t killed;
-  int status;
+  int status = 0;
   do {
     killed = waitpid(-1, &status, WNOHANG);
-    handlekilled(killed, &status);
+    if (killed != -1) {
+      handlekilled(killed, &status);
+    }
+    // TODO check errno
   } while (killed && killed != -1);
+
+  status = 0;
+  for (int sid = 0; sid <= maxprocess; ++sid) {
+    if (isrunning(sid)) {
+      if (kill(root[sid].pid, 0)) {
+        handlekilled(root[sid].pid, &status);
+      } else {
+        killed = 0;
+      }
+    }
+  }
+  if (killed == -1) {
+    // wout("neoinit: all services exited\n");
+    if (iam_init) {
+      // sulogin();
+    }
+    for (int sid = 0; sid <= maxprocess; ++sid) {
+      free(root[sid].name);
+    }
+    free(root);
+    exit(0);
+  }
 }
 
 int main(int argc, char *argv[]) {
@@ -544,9 +559,17 @@ int main(int argc, char *argv[]) {
             root[sid].respawn = 1;
             goto ok;
           case 'C':
-            if (kill(root[sid].pid, 0)) {     /* check if still active */
-              handlekilled(root[sid].pid, 0); /* no!?! remove form active list */
+            if (kill(root[sid].pid, 0)) {
               goto error;
+            }
+            dbg("[%d:%s] DOWN\n", sid, root[sid].name);
+            root[sid].pid = PID_DOWN;
+            root[sid].changed_at = time(0);
+            int sid_setup = root[sid].sid_setup;
+            if (sid_setup >= 0) {
+              dbg("[%d:%s] DOWN\n", sid_setup, root[sid_setup].name);
+              root[sid_setup].pid = PID_DOWN;
+              root[sid_setup].changed_at = root[sid].changed_at;
             }
             goto ok;
           case 'P': {

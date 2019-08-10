@@ -73,7 +73,7 @@ int setpid(char *service, pid_t pid) {
 }
 
 /* return nonzero if error */
-int check_remove(char *service) {
+int check_clear(char *service) {
   int len;
   buf[0] = 'C';
   len = addreadwrite(service);
@@ -198,23 +198,20 @@ void dumpdependencies(char *service) {
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    msg("neoinit run control\n"
-        "usage: neorc [-uodRrtkogCD] service\n"
-        "       neorc -Ppid service\n"
-        "       neorc -H\n"
+    msg("usage:\tneorc [OPTIONS] SERVICE...\n"
         "options:\n"
-        " -u\tup: start service with respawn\n"
-        " -o\tonce: start service without respawn\n"
-        " -d\tdown: disable respawn, stop service\n"
-        " -R\trespawn enable: set service respawn option\n"
-        " -r\trespawn disable: unset service respawn option\n"
-        " -t\tterminate: send SIGTERM\n"
-        " -k\tkill: send SIGKILL\n"
-        " -g\tget: output just the PID\n"
-        " -C\tclear: remove service form active list\n"
+        " -o\tonce. start service without respawn\n"
+        " -u\tup. start service with respawn\n"
+        " -d\tdown. signal service to stop, no respawn\n"
+        " -R\tenable respawn\n"
+        " -r\tdisable respawn\n"
+        " -t\tsend service SIGTERM\n"
+        " -k\tsend service SIGKILL\n"
+        " -g\tget pid. print just the service PID\n"
+        " -C\tclear. reset a finished service\n"
+        " -P pid\tset PID of service\n"
         " -D\tprint services started as dependency\n"
-        " -Ppid\tset PID of service\n"
-        " -H\tprint last n respawned services\n");
+        " -H\thistory. print last started services");
     return 0;
   }
   errmsg_iam("neorc");
@@ -332,7 +329,6 @@ int main(int argc, char *argv[]) {
               }
             }
           }
-          /* TODO set service down */
         }
         break;
       case 'R':
@@ -361,7 +357,7 @@ int main(int argc, char *argv[]) {
         break;
       case 'C':
         for (i = 2; i < argc; ++i) {
-          if (check_remove(argv[i])) {
+          if (check_clear(argv[i])) {
             carp(argv[i], " could not be cleared");
             ret = 1;
           }

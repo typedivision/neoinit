@@ -1,40 +1,33 @@
 .TH neorc 8
 .SH NAME
 neorc \- neoinit run control
+
 .SH SYNOPSIS
 .B neorc
-[
-.B \-[uodtko]
-] [
-.B \-P
-.I pid
-]
-.I service
-[\fI...\fR]
+[\fIOPTIONS\fR] \fISERVICE\fR...
 
 .SH DESCRIPTION
 .B neorc
-is the service management interface to neoinit.
-.I service
-is the service directory name relative to /etc/neorc
+is the management interface to \fBneoinit\fR.
+.I SERVICE
+is a directory name relative to /etc/neorc
 (can also include /etc/neorc/ in the service name).
-
 .SH OPTIONS
 If no option is given,
 .B neorc
 will just print a small diagnostic message to stdout, saying if the
-service is up, down or finished, which PID it has if it is up, and for
-how long it has been in this state.
+service is up, down, finished or failed, which PID it has if it is up,
+and for how long it has been in this state.
 .TP 5
-.B \-u
-Up.
-If the service is not running, start it.
-If the service stops, restart it.
-.TP
 .B \-o
 Once.
 If the service is not running, start it.
-If the service stops, do not restart it.
+If it stops, do not restart it.
+.TP
+.B \-u
+Up.
+If the service is not running, start it.
+If it stops, restart it.
 .TP
 .B \-d
 Down.
@@ -42,46 +35,70 @@ If the service is running, send it a TERM signal and then a CONT signal.
 After it stops, do not restart it.
 .TP
 .B \-R
-Enable Respawn.
-Set respawn option. This does not start/stop the service.
+Enable respawn.
+Set respawn option.
+This does not start/stop the service.
 .TP
 .B \-r
-Disable Respawn.
-Unset respawn option. This does not start/stop the service.
+Disable respawn.
+Unset respawn option.
+This does not start/stop the service.
 .TP
 .B \-t
 Terminate.
 Send the service a TERM signal.
 .TP
 .B \-k
-Terminate.
+Kill.
 Send the service a KILL signal.
+.TP
+.B \-g
+Get PID.
+Just print the PID of the service if it is running.
+.TP
+.B \-C
+Clear.
+If the service is finished, reset its state.
+This is useful if a dependency of a service should be started again
+together with that service.
 .TP
 .B \-P \fIpid\fR
 Set PID.
-Tell neoinit the PID of the service is really \fIpid\fR.  This is useful
-for services that fork themselves in the background but put their real
-PID in a file, typically called /var/run/\fIservice\fR.pid.
+Tell neoinit the PID of the service.
+This is useful for services that fork themselves in the background with
+a new PID to supervise.
 .TP
-.B \-D \fIservice\fR
+.B \-D
 Print dependencies.
-This will print all the names of all the services that were started
-because this services depended on them.  Please note that this is not
-done recursively (i.e. if default depends on qmail and qmail depends on
-log, this will print qmail, not qmail/log.  But neorc -D qmail will print
-qmail/log).
+This will print the names of all the services that were started because
+this services depended on them.
+Please note that this is not done recursively, only direct dependencies
+are listed.
 .TP
 .B \-H
 Print history.
-This will print the names of the ten least recently spawned processes.
-This is useful if you see a process looping (initialization fails and
-neoinit is restarting it all the time).
+This will print the names of the last spawned processes.
+This can be helpful if you see a process looping
+(initialization fails and it is restarting all the time).
 
-.SH "RETURN CODES"
-Generally, neorc return zero if everything is OK or 1 on error (could not
-open /etc/neorc/in or /etc/neorc/out or there is no process with the
-given name).  In diagnostic mode, it will exit 0 if the service is up, 2
-if it is down or 3 if it is finished.
+.SH "EXIT STATUS"
+Generally,
+.B neorc
+returns 0 if everything is ok or 1 if an error has occurred (could not
+open /etc/neorc/in or /etc/neorc/out or there is no service with the
+given name).
+.PP
+In the diagnostic mode, it will exit 0 if the service is up,
+2 if it is down or 3 if it is finished, 4 if it is finished but has failed
+(e.g. the service \fBrun\fR program file was not found)
+and 5 if its setup service has failed.
+
+.SH AUTHOR
+.B neorc
+is based on
+.B msvc
+written by Felix von Leitner.
+.I http://www.fefe.de/minit/
 
 .SH "SEE ALSO"
 neoinit(8)

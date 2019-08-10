@@ -1,0 +1,66 @@
+neoinit(8)                         System Manager's Manual                        neoinit(8)
+
+NAME
+       neoinit - a service start and supervising daemon, can be used as UNIX process no 1
+
+SYNOPSIS
+       neoinit [SERVICE]...
+
+DESCRIPTION
+       neoinit  can  start/stop/monitor services.  Each service gets its own directory under
+       /etc/neorc containing at least a program file or a symlink to an executable to start.
+
+       With no given SERVICE neoinit will start the service  defined  in  /etc/neorc/default
+       which usually contains a file named depends specifying which other services are to be
+       started at bootup.
+
+USAGE
+       neoinit will try to run the command line arguments as services.  If none of the  ser‐
+       vices worked (or none were given), neoinit will spawn the service "default".
+
+       Each service directory can contain the following files:
+
+       run
+       is the executable or a symbolic link to the program to start.
+
+       depends
+       a plain text file containing a service name per line.  Each of these services will be
+       started before this service is started.
+
+       params
+       a plain text file containing the command line parameters for the service program, one
+       parameter per line.
+
+       respawn
+       touch  this  file  to  make neoinit respawn the process when it dies.  This should be
+       touched for getty and network servers.
+
+       sync
+       touch this file to make neoinit wait until the service ends.  sync is mutually exclu‐
+       sive with respawn.
+
+       pidfile
+       a  plain  file containing the path to a process pid file.  If the given pid file path
+       exists and contains a PID of a runnning process, then the service  PID  will  be  re‐
+       placed  by  that PID when it is finished.  This is usefull for services forking them‐
+       selves in the background but creating a *.pid file in /var/run for example.
+
+       setup
+       if this directory exists, it is taken as a service and it is started just before  the
+       actual  service. A service with a setup process will only be started if the setup was
+       finished sucessfully.
+
+       log
+       if this directory exists, it is taken as a service and neoinit creates a pipe between
+       stdout  of  this service and stdin of the log service.  If the log service can not be
+       started, this service will block if it writes to stdout.  File  descriptors  will  be
+       reused,  i.e.  if  the log process dies and is restarted, no log entries will be lost
+       and there will be no SIGPIPE.
+
+AUTHOR
+       neoinit is based on minit written by Felix von Leitner.  http://www.fefe.de/minit/
+
+SEE ALSO
+       neorc(8)
+
+                                                                                  neoinit(8)
