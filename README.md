@@ -1,5 +1,7 @@
 ![neoinit](neoinit.png)
 
+[![Build Status](https://travis-ci.org/typedivision/neoinit.svg?branch=master)](https://travis-ci.org/typedivision/neoinit)
+
 __neoinit__ is a service start and supervising daemon based on the
 [minit](http://www.fefe.de/minit/) system init program.
 
