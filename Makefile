@@ -44,7 +44,7 @@ clean:
 	rm -rf debug test/etc
 
 install-files:
-	install $(DESTDIR)/sbin $(DESTDIR)/bin $(DESTDIR)$(MANDIR)/man8
+	install -d $(DESTDIR)/sbin $(DESTDIR)/bin $(DESTDIR)$(MANDIR)/man8
 	install neoinit hard-reboot $(DESTDIR)/sbin
 	install neorc serdo $(DESTDIR)/bin
 	install -m 644 man/hard-reboot.8 man/neoinit.8 man/neorc.8 man/serdo.8 $(DESTDIR)$(MANDIR)/man8
