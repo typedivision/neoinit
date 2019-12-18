@@ -18,6 +18,10 @@ USAGE
        neoinit will try to run the command line arguments as services.  If none of the  ser‐
        vices worked (or none were given), neoinit will spawn the service "default".
 
+       Optionally  if a service "boot" was found, it is startet before the control pipes for
+       neorc are opened.  This is necessary eg. to mount overlayfs media to make a read-only
+       /etc directory writeable.
+
        Each service directory can contain the following files:
 
        run

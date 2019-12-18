@@ -43,7 +43,7 @@ static int iam_init;
 #define HISTORY 15
 static int history[HISTORY];
 
-// static void wout(const char *s) { write(1, s, str_len(s)); }
+static void wout(const char *s) { write(1, s, str_len(s)); }
 static void werr(const char *s) { write(2, s, str_len(s)); }
 #ifdef DEBUG
 #define dbg(...)                                                                                   \
@@ -57,13 +57,6 @@ extern char **environ;
 
 extern int openreadclose(char *fn, char **buf, unsigned long *len);
 extern char **split(char *buf, int sep, int *len, int plus, int ofs);
-
-/* open rescue shell */
-void sulogin() {
-  char *argv[] = {"sulogin", 0};
-  execve("/sbin/sulogin", argv, environ);
-  _exit(1);
-}
 
 /* return index of service in process data structure or -1 if not found */
 int findservice(char *service) {
@@ -462,9 +455,8 @@ void childhandler() {
     }
   }
   if (killed == -1) {
-    // wout("neoinit: all services exited\n");
     if (iam_init) {
-      // sulogin();
+      wout("neoinit: all services exited\n");
     }
     for (int sid = 0; sid <= maxprocess; ++sid) {
       free(root[sid].name);
@@ -475,7 +467,6 @@ void childhandler() {
 }
 
 int main(int argc, char *argv[]) {
-  int count = 0;
   struct pollfd pfd;
   time_t last = time(0);
   int nfds = 1;
@@ -484,17 +475,19 @@ int main(int argc, char *argv[]) {
     history[i] = -1;
   }
 
-  infd = open(NIROOT "/in", O_RDWR | O_CLOEXEC);
-  outfd = open(NIROOT "/out", O_RDWR | O_NONBLOCK | O_CLOEXEC);
-
   if (getpid() == 1) {
     iam_init = 1;
     reboot(0);
   }
 
+  circsweep();
+  startservice(loadservice("boot"), 0, -1);
+
+  infd = open(NIROOT "/in", O_RDWR | O_CLOEXEC);
+  outfd = open(NIROOT "/out", O_RDWR | O_NONBLOCK | O_CLOEXEC);
+
   if (infd < 0 || outfd < 0) {
     werr("neoinit: could not open " NIROOT "/{in,out}\n");
-    sulogin();
     nfds = 0;
   } else {
     pfd.fd = infd;
@@ -503,10 +496,10 @@ int main(int argc, char *argv[]) {
 
   if (fcntl(infd, F_SETFD, FD_CLOEXEC) || fcntl(outfd, F_SETFD, FD_CLOEXEC)) {
     werr("neoinit: could not set up " NIROOT "/{in,out}\n");
-    sulogin();
     nfds = 0;
   }
 
+  int count = 0;
   for (int i = 1; i < argc; i++) {
     circsweep();
     if (startservice(loadservice(argv[i]), 0, -1)) {
@@ -539,8 +532,6 @@ int main(int argc, char *argv[]) {
         break;
       }
       werr("neoinit: poll failed!\n");
-      sulogin();
-      /* what should we do if poll fails?! */
       break;
     case 1:
       len = read(infd, buf, BUFSIZE);
