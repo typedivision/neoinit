@@ -26,19 +26,19 @@ typedef struct {
   pid_t pid;
   char respawn;
   char circular;
-  time_t changed_at;
   int sid_father;
-  int __stdin, __stdout;
-  int sid_log;
   int sid_setup;
-} process_t;
+  int sid_log;
+  time_t changed_at;
+  int __stdin, __stdout;
+} svc_t;
 
-static process_t *root;
+static svc_t *slist;
 
-static int infd, outfd;
-static int maxprocess = -1;
-static int processalloc;
+static int svc_max = -1;
+static int svc_alloc;
 static int iam_init;
+static int infd, outfd;
 
 #define HISTORY 15
 static int history[HISTORY];
@@ -58,20 +58,20 @@ extern char **environ;
 extern int openreadclose(char *fn, char **buf, unsigned long *len);
 extern char **split(char *buf, int sep, int *len, int plus, int ofs);
 
-/* return index of service in process data structure or -1 if not found */
+/* return index of service or -1 if not found */
 int findservice(char *service) {
-  for (int i = 0; i <= maxprocess; ++i) {
-    if (!strcmp(root[i].name, service)) {
+  for (int i = 0; i <= svc_max; ++i) {
+    if (!strcmp(slist[i].name, service)) {
       return i;
     }
   }
   return -1;
 }
 
-/* look up process index in data structure by PID */
+/* lookup service index by PID */
 int findbypid(pid_t pid) {
-  for (int i = 0; i <= maxprocess; ++i) {
-    if (root[i].pid == pid) {
+  for (int i = 0; i <= svc_max; ++i) {
+    if (slist[i].pid == pid) {
       return i;
     }
   }
@@ -80,40 +80,40 @@ int findbypid(pid_t pid) {
 
 /* clear circular dependency detection flags */
 void circsweep() {
-  for (int i = 0; i <= maxprocess; ++i) {
-    root[i].circular = 0;
+  for (int i = 0; i <= svc_max; ++i) {
+    slist[i].circular = 0;
   }
 }
 
-/* add process to data structure, return index or -1 */
-int addprocess(process_t *proc) {
-  if (maxprocess + 1 >= processalloc) {
-    process_t *rootext;
-    processalloc += 8;
-    if ((rootext = (process_t *)realloc(root, processalloc * sizeof(process_t))) == 0) {
+/* add service data structure, return index or -1 */
+int addsvc(svc_t *svc) {
+  if (svc_max + 1 >= svc_alloc) {
+    svc_t *slist_ext;
+    svc_alloc += 8;
+    if ((slist_ext = (svc_t *)realloc(slist, svc_alloc * sizeof(svc_t))) == 0) {
       return -1;
     }
-    root = rootext;
+    slist = slist_ext;
   }
-  memmove(&root[++maxprocess], proc, sizeof(process_t));
-  // dbg("[%d:%s] created\n", maxprocess, root[maxprocess].name);
-  return maxprocess;
+  memmove(&slist[++svc_max], svc, sizeof(svc_t));
+  // dbg("[%d:%s] created\n", svc_max, slist[svc_max].name);
+  return svc_max;
 }
 
 int loadservice(char *service);
 
 /* create a service defined in subfolder */
-int loadsubservice(process_t *proc, char *subservice) {
-  char *service = alloca(str_len(proc->name) + str_len(subservice) + 2);
-  strcpy(service, proc->name);
+int loadsubservice(svc_t *svc, char *subservice) {
+  char *service = alloca(str_len(svc->name) + str_len(subservice) + 2);
+  strcpy(service, svc->name);
   strcat(service, "/");
   strcat(service, subservice);
   return loadservice(service);
 }
 
-/* load a service into the process data structure and return index or -1 if failed */
+/* load service, return index or -1 if failed */
 int loadservice(char *service) {
-  process_t proc;
+  svc_t svc;
   if (*service == 0 || str_len(service) > PATH_MAX) {
     return -1;
   }
@@ -124,39 +124,39 @@ int loadservice(char *service) {
   if (chdir(NIROOT) || chdir(service)) {
     return -1;
   }
-  if (!(proc.name = strdup(service))) {
+  if (!(svc.name = strdup(service))) {
     return -1;
   }
-  proc.pid = 0;
+  svc.pid = 0;
+  svc.circular = 0;
+  svc.changed_at = 0;
   int fd = open("respawn", O_RDONLY | O_CLOEXEC);
   if (fd >= 0) {
-    proc.respawn = 1;
     close(fd);
+    svc.respawn = 1;
   } else {
-    proc.respawn = 0;
+    svc.respawn = 0;
   }
-  proc.changed_at = 0;
-  proc.circular = 0;
-  proc.__stdin = 0;
-  proc.__stdout = 1;
+  svc.__stdin = 0;
+  svc.__stdout = 1;
 
-  proc.sid_log = loadsubservice(&proc, "log");
-  proc.sid_setup = loadsubservice(&proc, "setup");
+  svc.sid_log = loadsubservice(&svc, "log");
+  svc.sid_setup = loadsubservice(&svc, "setup");
 
-  if (proc.sid_log >= 0) {
+  if (svc.sid_log >= 0) {
     int pipefd[2];
     if (pipe(pipefd) ||
         fcntl(pipefd[0], F_SETFD, FD_CLOEXEC) ||
         fcntl(pipefd[1], F_SETFD, FD_CLOEXEC)) {
-      free(proc.name);
+      free(svc.name);
       return -1;
     }
-    root[proc.sid_log].__stdin = pipefd[0];
-    proc.__stdout = pipefd[1];
+    slist[svc.sid_log].__stdin = pipefd[0];
+    svc.__stdout = pipefd[1];
   }
-  sid = addprocess(&proc);
+  sid = addsvc(&svc);
   if (sid < 0) {
-    free(proc.name);
+    free(svc.name);
   }
   return sid;
 }
@@ -166,7 +166,7 @@ int isup(int sid) {
   if (sid < 0) {
     return 0;
   }
-  return (root[sid].pid && root[sid].pid != PID_DOWN && root[sid].pid != PID_SETUP);
+  return (slist[sid].pid && slist[sid].pid != PID_DOWN && slist[sid].pid != PID_SETUP);
 }
 
 /* usage: isrunning(findservice("sshd")), returns nonzero if process is running */
@@ -174,7 +174,7 @@ int isrunning(int sid) {
   if (sid < 0) {
     return 0;
   }
-  return (root[sid].pid > 1);
+  return (slist[sid].pid > 1);
 }
 
 int startservice(int sid, int pause, int sid_father);
@@ -184,13 +184,13 @@ void handlekilled(pid_t killed, const int *status) {
     return;
   }
   int sid = findbypid(killed);
-  dbg("[neoinit] pid %d exited: sid %d %s\n", killed, sid, sid >= 0 ? root[sid].name : "");
+  dbg("[neoinit] pid %d exited: sid %d %s\n", killed, sid, sid >= 0 ? slist[sid].name : "");
   if (sid < 0) {
     return;
   }
   unsigned long len = 0;
   char *pidfile = 0;
-  if (!chdir(NIROOT) && !chdir(root[sid].name)) {
+  if (!chdir(NIROOT) && !chdir(slist[sid].name)) {
     if (!openreadclose("pidfile", &pidfile, &len)) {
       for (char *s = pidfile; *s; s++) {
         if (*s == '\n') {
@@ -213,8 +213,8 @@ void handlekilled(pid_t killed, const int *status) {
             pid = pid * 10 + c;
           }
           if (pid > 0 && !kill(pid, 0)) {
-            dbg("[%d:%s] pidfile %d\n", sid, root[sid].name, pid);
-            root[sid].pid = pid;
+            dbg("[%d:%s] pidfile %d\n", sid, slist[sid].name, pid);
+            slist[sid].pid = pid;
             return;
           }
         }
@@ -222,33 +222,33 @@ void handlekilled(pid_t killed, const int *status) {
     }
   }
   if (status && WIFEXITED(*status) && WEXITSTATUS(*status)) {
-    dbg("[%d:%s] FAILED %d\n", sid, root[sid].name, WEXITSTATUS(*status));
-    root[sid].pid = PID_FAILED;
+    dbg("[%d:%s] FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(*status));
+    slist[sid].pid = PID_FAILED;
   } else {
-    dbg("[%d:%s] FINISHED\n", sid, root[sid].name);
-    root[sid].pid = PID_FINISHED;
+    dbg("[%d:%s] FINISHED\n", sid, slist[sid].name);
+    slist[sid].pid = PID_FINISHED;
   }
-  time_t sid_started_at = root[sid].changed_at;
-  root[sid].changed_at = time(0); /* set stop time */
+  time_t sid_started_at = slist[sid].changed_at;
+  slist[sid].changed_at = time(0); /* set stop time */
 
-  int sid_father = root[sid].sid_father;
-  if (sid_father >= 0 && root[sid_father].sid_setup == sid) {
-    if (root[sid].pid == PID_FAILED) {
+  int sid_father = slist[sid].sid_father;
+  if (sid_father >= 0 && slist[sid_father].sid_setup == sid) {
+    if (slist[sid].pid == PID_FAILED) {
       /* dont start service if setup failed */
-      dbg("[%d:%s] SETUP_FAILED\n", sid_father, root[sid_father].name);
-      root[sid_father].pid = PID_SETUP_FAILED;
-      root[sid_father].changed_at = root[sid].changed_at;
+      dbg("[%d:%s] SETUP_FAILED\n", sid_father, slist[sid_father].name);
+      slist[sid_father].pid = PID_SETUP_FAILED;
+      slist[sid_father].changed_at = slist[sid].changed_at;
     } else {
       circsweep();
-      startservice(sid_father, 0, root[sid_father].sid_father);
+      startservice(sid_father, 0, slist[sid_father].sid_father);
     }
   } else {
-    if (root[sid].respawn) {
-      dbg("[%d:%s] restarting\n", sid, root[sid].name);
-      dbg("[%d:%s] DOWN\n", sid, root[sid].name);
-      root[sid].pid = PID_DOWN;
+    if (slist[sid].respawn) {
+      dbg("[%d:%s] restarting\n", sid, slist[sid].name);
+      dbg("[%d:%s] DOWN\n", sid, slist[sid].name);
+      slist[sid].pid = PID_DOWN;
       circsweep();
-      startservice(sid, time(0) - sid_started_at < 1, root[sid].sid_father);
+      startservice(sid, time(0) - sid_started_at < 1, slist[sid].sid_father);
     }
   }
 }
@@ -323,16 +323,16 @@ again:
     } else {
       argv[0] = argv0;
     }
-    if (root[sid].__stdin != 0) {
-      if (dup2(root[sid].__stdin, 0)) {
+    if (slist[sid].__stdin != 0) {
+      if (dup2(slist[sid].__stdin, 0)) {
         _exit(225);
       }
       if (fcntl(0, F_SETFD, 0)) {
         _exit(225);
       }
     }
-    if (root[sid].__stdout != 1) {
-      if (dup2(root[sid].__stdout, 1) || dup2(root[sid].__stdout, 2)) {
+    if (slist[sid].__stdout != 1) {
+      if (dup2(slist[sid].__stdout, 1) || dup2(slist[sid].__stdout, 2)) {
         _exit(225);
       }
       if (fcntl(1, F_SETFD, 0) || fcntl(2, F_SETFD, 0)) {
@@ -345,14 +345,14 @@ again:
     execve(argv0, argv, environ);
     _exit(226);
   default:
-    dbg("[%d:%s] pid %d\n", sid, root[sid].name, pid);
-    root[sid].pid = pid;
+    dbg("[%d:%s] pid %d\n", sid, slist[sid].name, pid);
+    slist[sid].pid = pid;
     fd = open("sync", O_RDONLY | O_CLOEXEC);
     if (fd >= 0) {
       close(fd);
       int status = 0;
       waitpid(pid, &status, 0);
-      root[sid].respawn = 0;
+      slist[sid].respawn = 0;
       handlekilled(pid, &status);
     }
     return 0;
@@ -364,15 +364,15 @@ int startnodep(int sid, int pause) {
   if (isup(sid)) {
     return 0;
   }
-  if (chdir(NIROOT) || chdir(root[sid].name)) {
+  if (chdir(NIROOT) || chdir(slist[sid].name)) {
     return -1;
   }
 
   memmove(history + 1, history, sizeof(int) * ((HISTORY)-1));
   history[0] = sid;
 
-  dbg("[%d:%s] RUNNING\n", sid, root[sid].name);
-  root[sid].changed_at = time(0); /* set start time */
+  dbg("[%d:%s] RUNNING\n", sid, slist[sid].name);
+  slist[sid].changed_at = time(0); /* set start time */
   return forkandexec(sid, pause);
 }
 
@@ -381,19 +381,19 @@ int startservice(int sid, int pause, int sid_father) {
   if (sid < 0) {
     return 0;
   }
-  if (root[sid].circular) {
+  if (slist[sid].circular) {
     return 0;
   }
-  root[sid].circular = 1;
-  root[sid].sid_father = sid_father;
-  dbg("[%d:%s] starting\n", sid, root[sid].name);
-  // dbg("[%d:%s] parent %d %s\n", sid, root[sid].name, sid_father,
-  //     sid_father >= 0 ? root[sid_father].name : "neoinit");
+  slist[sid].circular = 1;
+  slist[sid].sid_father = sid_father;
+  dbg("[%d:%s] starting\n", sid, slist[sid].name);
+  // dbg("[%d:%s] parent %d %s\n", sid, slist[sid].name, sid_father,
+  //     sid_father >= 0 ? slist[sid_father].name : "neoinit");
 
-  if (root[sid].sid_log >= 0) {
-    startservice(root[sid].sid_log, pause, sid);
+  if (slist[sid].sid_log >= 0) {
+    startservice(slist[sid].sid_log, pause, sid);
   }
-  if (chdir(NIROOT) || chdir(root[sid].name)) {
+  if (chdir(NIROOT) || chdir(slist[sid].name)) {
     return -1;
   }
   if ((dir = open(".", O_RDONLY | O_CLOEXEC)) >= 0) {
@@ -407,7 +407,7 @@ int startservice(int sid, int pause, int sid_father) {
           if (depv[di][0] == 0 || depv[di][0] == '#') {
             continue;
           }
-          dbg("[%d:%s] depends: %s\n", sid, root[sid].name, depv[di]);
+          dbg("[%d:%s] depends: %s\n", sid, slist[sid].name, depv[di]);
           int sid_dep = loadservice(depv[di]);
           if (sid_dep >= 0 && !isup(sid_dep)) {
             startservice(sid_dep, 0, sid);
@@ -419,11 +419,11 @@ int startservice(int sid, int pause, int sid_father) {
       fchdir(dir);
     }
     int started = -1;
-    if (root[sid].sid_setup >= 0 && !isup(root[sid].sid_setup)) {
-      dbg("[%d:%s] SETUP\n", sid, root[sid].name);
-      root[sid].pid = PID_SETUP;
-      root[sid].changed_at = time(0);
-      started = startservice(root[sid].sid_setup, pause, sid);
+    if (slist[sid].sid_setup >= 0 && !isup(slist[sid].sid_setup)) {
+      dbg("[%d:%s] SETUP\n", sid, slist[sid].name);
+      slist[sid].pid = PID_SETUP;
+      slist[sid].changed_at = time(0);
+      started = startservice(slist[sid].sid_setup, pause, sid);
     } else {
       started = startnodep(sid, pause);
     }
@@ -445,10 +445,10 @@ void childhandler() {
   } while (killed && killed != -1);
 
   status = 0;
-  for (int sid = 0; sid <= maxprocess; ++sid) {
+  for (int sid = 0; sid <= svc_max; ++sid) {
     if (isrunning(sid)) {
-      if (kill(root[sid].pid, 0)) {
-        handlekilled(root[sid].pid, &status);
+      if (kill(slist[sid].pid, 0)) {
+        handlekilled(slist[sid].pid, &status);
       } else {
         killed = 0;
       }
@@ -458,10 +458,10 @@ void childhandler() {
     if (iam_init) {
       wout("neoinit: all services exited\n");
     }
-    for (int sid = 0; sid <= maxprocess; ++sid) {
-      free(root[sid].name);
+    for (int sid = 0; sid <= svc_max; ++sid) {
+      free(slist[sid].name);
     }
-    free(root);
+    free(slist);
     exit(0);
   }
 }
@@ -520,8 +520,8 @@ int main(int argc, char *argv[]) {
     if (now < last || now - last > 30) {
       /* the system clock was reset, compensate */
       long diff = last - now;
-      for (int j = 0; j <= maxprocess; ++j) {
-        root[j].changed_at -= diff;
+      for (int j = 0; j <= svc_max; ++j) {
+        slist[j].changed_at -= diff;
       }
     }
     last = now;
@@ -544,26 +544,26 @@ int main(int argc, char *argv[]) {
         } else {
           switch (buf[0]) {
           case 'p':
-            write(outfd, buf, fmt_long(buf, root[sid].pid));
+            write(outfd, buf, fmt_long(buf, slist[sid].pid));
             break;
           case 'r':
-            root[sid].respawn = 0;
+            slist[sid].respawn = 0;
             goto ok;
           case 'R':
-            root[sid].respawn = 1;
+            slist[sid].respawn = 1;
             goto ok;
           case 'C':
-            if (isrunning(sid) || root[sid].pid == PID_SETUP) {
+            if (isrunning(sid) || slist[sid].pid == PID_SETUP) {
               goto error;
             }
-            dbg("[%d:%s] DOWN\n", sid, root[sid].name);
-            root[sid].pid = PID_DOWN;
-            root[sid].changed_at = time(0);
-            int sid_setup = root[sid].sid_setup;
+            dbg("[%d:%s] DOWN\n", sid, slist[sid].name);
+            slist[sid].pid = PID_DOWN;
+            slist[sid].changed_at = time(0);
+            int sid_setup = slist[sid].sid_setup;
             if (sid_setup >= 0) {
-              dbg("[%d:%s] DOWN\n", sid_setup, root[sid_setup].name);
-              root[sid_setup].pid = PID_DOWN;
-              root[sid_setup].changed_at = root[sid].changed_at;
+              dbg("[%d:%s] DOWN\n", sid_setup, slist[sid_setup].name);
+              slist[sid_setup].pid = PID_DOWN;
+              slist[sid_setup].changed_at = slist[sid].changed_at;
             }
             goto ok;
           case 'P': {
@@ -578,7 +578,7 @@ int main(int argc, char *argv[]) {
                 goto error;
               }
             }
-            root[sid].pid = pid;
+            slist[sid].pid = pid;
             goto ok;
           }
           case 's':
@@ -586,16 +586,16 @@ int main(int argc, char *argv[]) {
             if (sid < 0) {
               goto error;
             }
-            if (!isrunning(sid) && !isrunning(root[sid].sid_setup)) {
+            if (!isrunning(sid) && !isrunning(slist[sid].sid_setup)) {
               /* start service including setup */
-              dbg("[%d:%s] DOWN\n", sid, root[sid].name);
-              root[sid].pid = PID_DOWN;
-              root[sid].changed_at = time(0);
-              int sid_setup = root[sid].sid_setup;
+              dbg("[%d:%s] DOWN\n", sid, slist[sid].name);
+              slist[sid].pid = PID_DOWN;
+              slist[sid].changed_at = time(0);
+              int sid_setup = slist[sid].sid_setup;
               if (sid_setup >= 0) {
-                dbg("[%d:%s] DOWN\n", sid_setup, root[sid_setup].name);
-                root[sid_setup].pid = PID_DOWN;
-                root[sid_setup].changed_at = root[sid].changed_at;
+                dbg("[%d:%s] DOWN\n", sid_setup, slist[sid_setup].name);
+                slist[sid_setup].pid = PID_DOWN;
+                slist[sid_setup].changed_at = slist[sid].changed_at;
               }
               circsweep();
               if (startservice(sid, 0, -1)) {
@@ -606,15 +606,15 @@ int main(int argc, char *argv[]) {
             write(outfd, "1", 1);
             break;
           case 'u':
-            write(outfd, buf, fmt_ulong(buf, time(0) - root[sid].changed_at));
+            write(outfd, buf, fmt_ulong(buf, time(0) - slist[sid].changed_at));
             break;
           case 'd':
             len = 0;
             write(outfd, "1:", 2);
             dbg("[neoinit] looking for father = sid %d\n", sid);
-            for (int si = 0; si <= maxprocess; ++si) {
-              if (root[si].sid_father == sid) {
-                write(outfd, root[si].name, str_len(root[si].name) + 1);
+            for (int si = 0; si <= svc_max; ++si) {
+              if (slist[si].sid_father == sid) {
+                write(outfd, slist[si].name, str_len(slist[si].name) + 1);
                 len = 1;
               }
             }
@@ -631,7 +631,7 @@ int main(int argc, char *argv[]) {
           write(outfd, "1:", 2);
           for (int i = 0; i < HISTORY; ++i) {
             if (history[i] != -1) {
-              write(outfd, root[history[i]].name, str_len(root[history[i]].name) + 1);
+              write(outfd, slist[history[i]].name, str_len(slist[history[i]].name) + 1);
             }
           }
           write(outfd, "\0", 1);
