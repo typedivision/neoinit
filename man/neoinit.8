@@ -9,7 +9,7 @@ can be used as UNIX process no 1
 
 .SH DESCRIPTION
 .B neoinit
-can start/stop/monitor services.
+can start, stop and monitor services.
 Each service gets its own directory under /etc/neorc containing
 at least a program file or a symlink to an executable to start.
 .PP
@@ -38,6 +38,10 @@ Each service directory can contain the following files:
 .B run
 is the executable or a symbolic link to the program to start.
 .TP
+.B setup
+is an executable or a symbolic link to a program which is started just before the actual service.
+A service with a setup process will only be started if the setup was finished sucessfully.
+.TP
 .B depends
 a plain text file containing a service name per line.
 Each of these services will be started before this service is started.
@@ -64,11 +68,6 @@ If the given pid file path exists and contains a PID of a runnning process, then
 will be replaced by that PID when it is finished.
 This is usefull for services forking themselves in the background but creating a *.pid file in
 /var/run for example.
-.TP
-.B setup
-if this directory exists, it is taken as a service and it is started just
-before the actual service. A service with a setup process will only be started
-if the setup was finished sucessfully.
 .TP
 .B log
 if this directory exists, it is taken as a service and

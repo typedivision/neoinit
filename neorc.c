@@ -37,7 +37,7 @@ int addreadwrite(char *service) {
 }
 
 /* return PID, 0 if error */
-pid_t __readpid(char *service) {
+pid_t __readpid(char *service, int *state) {
   int len;
   buf[0] = 'p';
   len = addreadwrite(service);
@@ -45,6 +45,15 @@ pid_t __readpid(char *service) {
     return 0;
   }
   buf[len] = 0;
+  if (len) {
+    if (state) {
+      /* decode state from ascii */
+      *state = buf[--len] - 'a';
+    }
+    buf[len] = 0;
+  } else if (state) {
+    *state = 0;
+  }
   return atoi(buf);
 }
 
@@ -223,29 +232,38 @@ int main(int argc, char *argv[]) {
       sleep(1);
     }
     if (argc == 2 && argv[1][1] != 'H') {
-      pid_t pid = __readpid(argv[1]);
+      int state = 0;
+      pid_t pid = __readpid(argv[1], &state);
       if (buf[0] != '0') {
         unsigned long ut = uptime(argv[1]);
+        char *how;
         char *what;
         char since[FMT_ULONG];
 
         if (pid > 1) {
-          what = "UP ";
-        } else if (pid == PID_FINISHED) {
-          what = "FINISHED ";
+          how = "RUNNING ";
         } else if (pid == PID_DOWN) {
-          what = "DOWN ";
-        } else if (pid == PID_SETUP) {
-          what = "SETUP ";
-        } else if (pid == PID_FAILED) {
+          how = "DOWN ";
+        } else {
+          how = "UNKNOWN ";
+        }
+        if (state == SID_INIT) {
+          what = "INIT ";
+        } else if (state == SID_ACTIVE) {
+          what = "ACTIVE ";
+        } else if (state == SID_FINISHED) {
+          what = "FINISHED ";
+        } else if (state == SID_FAILED) {
           what = "FAILED ";
-        } else if (pid == PID_SETUP_FAILED) {
+        } else if (state == SID_SETUP) {
+          what = "SETUP ";
+        } else if (state == SID_SETUP_FAILED) {
           what = "SETUP_FAILED ";
         } else {
           what = "UNKNOWN ";
         }
         since[fmt_ulong(since, ut)] = 0;
-        msg(argv[1], " ", what, since, "s");
+        msg(argv[1], " ", how, what, since, "s");
         return 0;
       }
       carp(argv[1], ": no such service");
@@ -259,7 +277,7 @@ int main(int argc, char *argv[]) {
       switch (argv[1][1]) {
       case 'g':
         for (i = 2; i < argc; ++i) {
-          pid = __readpid(argv[i]);
+          pid = __readpid(argv[i], NULL);
           if (pid < 2) {
             carp(argv[i], pid == 0 ? ": no such service" : ": service not running");
             ret = 1;
@@ -289,7 +307,7 @@ int main(int argc, char *argv[]) {
         break;
       case 'd':
         for (i = 2; i < argc; ++i) {
-          pid = __readpid(argv[i]);
+          pid = __readpid(argv[i], NULL);
           if (pid == 0) {
             carp(argv[i], ": no such service");
             ret = 1;
@@ -355,31 +373,31 @@ int main(int argc, char *argv[]) {
     }
     return ret;
   dokill:
-    for (i = 2; i < argc; i++) {
-      pid = __readpid(argv[i]);
+    for (i = 2; i < argc; ++i) {
+      pid = __readpid(argv[i], NULL);
       if (pid < 2) {
         carp(argv[i], pid == 0 ? ": no such service" : ": service not running");
         ret = 1;
       } else if (kill(pid, sig)) {
-        char tmp[FMT_ULONG];
-        char tmp2[FMT_ULONG];
-        char *s;
+        char sigstr[FMT_ULONG];
+        char pidstr[FMT_ULONG];
+        char *err;
         switch (errno) {
         case EINVAL:
-          s = "invalid signal";
+          err = "invalid signal";
           break;
         case EPERM:
-          s = "permission denied";
+          err = "permission denied";
           break;
         case ESRCH:
-          s = "no such pid";
+          err = "no such pid";
           break;
         default:
-          s = "unknown error";
+          err = "unknown error";
         }
-        tmp[fmt_ulong(tmp, sig)] = 0;
-        tmp2[fmt_ulong(tmp2, pid)] = 0;
-        carp(argv[i], ": could not send signal ", tmp, " to PID ", pid, ": ", s);
+        sigstr[fmt_ulong(sigstr, sig)] = 0;
+        pidstr[fmt_ulong(pidstr, pid)] = 0;
+        carp(argv[i], ": could not send signal ", sigstr, " to PID ", pidstr, ": ", err);
         ret = 1;
       }
     }

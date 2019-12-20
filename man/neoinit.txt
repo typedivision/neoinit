@@ -7,8 +7,9 @@ SYNOPSIS
        neoinit [SERVICE]...
 
 DESCRIPTION
-       neoinit  can  start/stop/monitor services.  Each service gets its own directory under
-       /etc/neorc containing at least a program file or a symlink to an executable to start.
+       neoinit  can  start,  stop and monitor services.  Each service gets its own directory
+       under /etc/neorc containing at least a program file or a symlink to an executable  to
+       start.
 
        With no given SERVICE neoinit will start the service  defined  in  /etc/neorc/default
        which usually contains a file named depends specifying which other services are to be
@@ -26,6 +27,11 @@ USAGE
 
        run
        is the executable or a symbolic link to the program to start.
+
+       setup
+       is  an  executable  or  a symbolic link to a program which is started just before the
+       actual service.  A service with a setup process will only be started if the setup was
+       finished sucessfully.
 
        depends
        a plain text file containing a service name per line.  Each of these services will be
@@ -48,11 +54,6 @@ USAGE
        exists and contains a PID of a runnning process, then the service  PID  will  be  re‐
        placed  by  that PID when it is finished.  This is usefull for services forking them‐
        selves in the background but creating a *.pid file in /var/run for example.
-
-       setup
-       if this directory exists, it is taken as a service and it is started just before  the
-       actual  service. A service with a setup process will only be started if the setup was
-       finished sucessfully.
 
        log
        if this directory exists, it is taken as a service and neoinit creates a pipe between
