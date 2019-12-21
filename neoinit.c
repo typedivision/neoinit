@@ -220,21 +220,23 @@ void handlekilled(pid_t killed, int status) {
       }
     }
   }
-  if (slist[sid].state == SID_SETUP) { // was setup
-    if (WIFEXITED(status) && WEXITSTATUS(status)) {
-      dbg("[%d:%s] SETUP_FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
-      slist[sid].state = SID_SETUP_FAILED;
-    } else {
-      dbg("[%d:%s] SETUP_FINISHED\n", sid, slist[sid].name);
-      slist[sid].state = SID_INIT;
-    }
-  } else { // was active
-    if (WIFEXITED(status) && WEXITSTATUS(status)) {
-      dbg("[%d:%s] FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
-      slist[sid].state = SID_FAILED;
-    } else {
-      dbg("[%d:%s] FINISHED\n", sid, slist[sid].name);
-      slist[sid].state = SID_FINISHED;
+  if (slist[sid].state != SID_STOPPED) { // has been stopped
+    if (slist[sid].state == SID_SETUP) { // was setup
+      if (WIFEXITED(status) && WEXITSTATUS(status)) {
+        dbg("[%d:%s] SETUP_FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
+        slist[sid].state = SID_SETUP_FAILED;
+      } else {
+        dbg("[%d:%s] SETUP_FINISHED\n", sid, slist[sid].name);
+        slist[sid].state = SID_INIT;
+      }
+    } else { // was active
+      if (WIFEXITED(status) && WEXITSTATUS(status)) {
+        dbg("[%d:%s] FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
+        slist[sid].state = SID_FAILED;
+      } else {
+        dbg("[%d:%s] FINISHED\n", sid, slist[sid].name);
+        slist[sid].state = SID_FINISHED;
+      }
     }
   }
   time_t sid_started_at = slist[sid].changed_at;
@@ -246,7 +248,8 @@ void handlekilled(pid_t killed, int status) {
     dbg("[%d:%s] INIT\n", sid, slist[sid].name);
     slist[sid].state = SID_INIT;
     startnodep(sid, 0, 0);
-  } else if (slist[sid].state != SID_SETUP_FAILED && slist[sid].respawn) {
+  } else if (slist[sid].state != SID_STOPPED && slist[sid].state != SID_SETUP_FAILED &&
+             slist[sid].respawn) {
     dbg("[%d:%s] respawn\n", sid, slist[sid].name);
     dbg("[%d:%s] INIT\n", sid, slist[sid].name);
     slist[sid].state = SID_INIT;
@@ -560,6 +563,13 @@ int main(int argc, char *argv[]) {
             goto ok;
           case 'R': // set service respawn
             slist[sid].respawn = 1;
+            goto ok;
+          case 'c': // cancel service (prepare to stop)
+            if (!isrunning(sid)) {
+              goto error;
+            }
+            dbg("[%d:%s] STOPPED\n", sid, slist[sid].name);
+            slist[sid].state = SID_STOPPED;
             goto ok;
           case 'C': // clear service (reset state)
             if (slist[sid].pid != PID_DOWN) {

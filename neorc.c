@@ -66,6 +66,14 @@ int respawn(char *service, int yesno) {
 }
 
 /* return nonzero if error */
+int cancel(char *service) {
+  int len;
+  buf[0] = 'c';
+  len = addreadwrite(service);
+  return (len != 1 || buf[0] == '0');
+}
+
+/* return nonzero if error */
 int setpid(char *service, pid_t pid) {
   char *tmp;
   int len;
@@ -314,7 +322,7 @@ int main(int argc, char *argv[]) {
           } else if (pid < 2) {
             continue;
           } else {
-            if (!respawn(argv[i], 0)) {
+            if (!cancel(argv[i])) {
               if (!kill(pid, SIGTERM)) {
                 kill(pid, SIGCONT);
               }
