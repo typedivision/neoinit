@@ -41,18 +41,20 @@ pid_t __readpid(char *service, int *state) {
   int len;
   buf[0] = 'p';
   len = addreadwrite(service);
-  if (len < 0) {
+  if (len < 1) {
     return 0;
   }
   buf[len] = 0;
-  if (len) {
-    if (state) {
-      /* decode state from ascii */
-      *state = buf[--len] - 'a';
-    }
-    buf[len] = 0;
-  } else if (state) {
-    *state = 0;
+  char *s = strchr(buf, '@');
+  if (!s) {
+    return 0;
+  }
+  s[0] = 0;
+  if (!str_len(buf)) {
+    return 0;
+  }
+  if (state) {
+    *state = atoi(s + 1);
   }
   return atoi(buf);
 }
@@ -90,7 +92,7 @@ int setpid(char *service, pid_t pid) {
 }
 
 /* return nonzero if error */
-int check_clear(char *service) {
+int clear(char *service) {
   int len;
   buf[0] = 'C';
   len = addreadwrite(service);
@@ -117,13 +119,13 @@ unsigned long uptime(char *service) {
   return atoi(buf);
 }
 
-void dumphistory() {
+void dumpservices(char dump_cmd) {
   char tmp[16384];
   int i, j;
   char first, last;
   first = 1;
   last = 'x';
-  write(infd, "h", 1);
+  write(infd, &dump_cmd, 1);
   for (;;) {
     int done;
     j = read(outfd, tmp, sizeof(tmp));
@@ -132,7 +134,7 @@ void dumphistory() {
     }
     done = i = 0;
     if (first) {
-      if (tmp[0] == '0') {
+      if (dump_cmd == 'h' && tmp[0] == '0') {
         carp("neoinit compiled without history support");
         return;
       }
@@ -228,7 +230,8 @@ int main(int argc, char *argv[]) {
         " -C\tclear. reset a finished service\n"
         " -P pid\tset PID of service\n"
         " -D\tprint services started as dependency\n"
-        " -H\thistory. print last started services");
+        " -H\thistory. print last started services\n"
+        " -L\tlist. print all services and its states");
     return 0;
   }
   // errmsg_iam("neorc");
@@ -239,40 +242,20 @@ int main(int argc, char *argv[]) {
       carp("could not acquire lock");
       sleep(1);
     }
-    if (argc == 2 && argv[1][1] != 'H') {
+    if (argc == 2 && argv[1][1] != 'H' && argv[1][1] != 'L') {
       int state = 0;
       pid_t pid = __readpid(argv[1], &state);
       if (buf[0] != '0') {
-        unsigned long ut = uptime(argv[1]);
-        char *how;
-        char *what;
-        char since[FMT_ULONG];
-
-        if (pid > 1) {
-          how = "RUNNING ";
-        } else if (pid == PID_DOWN) {
-          how = "DOWN ";
-        } else {
-          how = "UNKNOWN ";
+        if (pid > 0) {
+          unsigned long ut = uptime(argv[1]);
+          char which[FMT_STATE];
+          char since[FMT_ULONG];
+          which[fmt_state(which, state)] = 0;
+          since[fmt_ulong(since, ut)] = 0;
+          msg(argv[1], ": ", which, " ", since, "s");
+          return 0;
         }
-        if (state == SID_INIT) {
-          what = "INIT ";
-        } else if (state == SID_ACTIVE) {
-          what = "ACTIVE ";
-        } else if (state == SID_FINISHED) {
-          what = "FINISHED ";
-        } else if (state == SID_FAILED) {
-          what = "FAILED ";
-        } else if (state == SID_SETUP) {
-          what = "SETUP ";
-        } else if (state == SID_SETUP_FAILED) {
-          what = "SETUP_FAILED ";
-        } else {
-          what = "UNKNOWN ";
-        }
-        since[fmt_ulong(since, ut)] = 0;
-        msg(argv[1], " ", how, what, since, "s");
-        return 0;
+        carp(argv[1], ": get pid failed");
       }
       carp(argv[1], ": no such service");
       return 1;
@@ -356,7 +339,7 @@ int main(int argc, char *argv[]) {
         break;
       case 'C':
         for (i = 2; i < argc; ++i) {
-          if (check_clear(argv[i])) {
+          if (clear(argv[i])) {
             carp(argv[i], " could not be cleared");
             ret = 1;
           }
@@ -372,7 +355,10 @@ int main(int argc, char *argv[]) {
         }
         break;
       case 'H':
-        dumphistory();
+        dumpservices('h');
+        break;
+      case 'L':
+        dumpservices('l');
         break;
       case 'D':
         dumpdependencies(argv[2]);

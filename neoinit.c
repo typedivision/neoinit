@@ -550,14 +550,13 @@ int main(int argc, char *argv[]) {
           write(outfd, "0", 1);
         } else {
           switch (buf[0]) {
-          case 'p': { // get service pid and state
-            size_t len = fmt_long(buf, slist[sid].pid);
-            /* encode state to ascii */
-            buf[len] = 'a' + slist[sid].state;
-            buf[++len] = 0;
+          case 'p': // get service pid and state
+            len = fmt_long(buf, slist[sid].pid);
+            buf[len++] = '@';
+            len += fmt_ulong(buf + len, slist[sid].state);
+            buf[len++] = "\0";
             write(outfd, buf, len);
             break;
-          }
           case 'r': // unset service respawn
             slist[sid].respawn = 0;
             goto ok;
@@ -646,6 +645,17 @@ int main(int argc, char *argv[]) {
             if (history[i] != -1) {
               write(outfd, slist[history[i]].name, str_len(slist[history[i]].name) + 1);
             }
+          }
+          write(outfd, "\0", 1);
+        } else if (buf[0] == 'l') { // get service list
+          write(outfd, "1:", 2);
+          for (int i = 0; i <= svc_max; ++i) {
+            write(outfd, slist[i].name, str_len(slist[i].name));
+            write(outfd, ": ", 2);
+            write(outfd, buf, fmt_state(buf, slist[i].state));
+            write(outfd, " ", 1);
+            write(outfd, buf, fmt_ulong(buf, time(0) - slist[i].changed_at));
+            write(outfd, "s\0", 2);
           }
           write(outfd, "\0", 1);
         }

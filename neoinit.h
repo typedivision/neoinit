@@ -16,4 +16,36 @@
 #define SID_SETUP        5
 #define SID_SETUP_FAILED 6
 
+#define FMT_STATE 11 // str_len("setupfailed")
+
+size_t fmt_state(char *buf, int state) {
+  switch (state) {
+  case SID_INIT:
+    strcpy(buf, "init");
+    break;
+  case SID_ACTIVE:
+    strcpy(buf, "active");
+    break;
+  case SID_FINISHED:
+    strcpy(buf, "finished");
+    break;
+  case SID_STOPPED:
+    strcpy(buf, "stopped");
+    break;
+  case SID_FAILED:
+    strcpy(buf, "failed");
+    break;
+  case SID_SETUP:
+    strcpy(buf, "setup");
+    break;
+  case SID_SETUP_FAILED:
+    strcpy(buf, "setupfailed");
+    break;
+  default:
+    strcpy(buf, "invalid");
+    buf = "invalid";
+  }
+  return str_len(buf);
+}
+
 #endif /* NEOINIT_H */

@@ -682,6 +682,39 @@ init
 EOF
 }
 
+test_rc_list () {
+  for d in default ok down nok setup_fail; do
+    mkdir $NIROOT/$d
+  done
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+sleep 6
+neorc -C down
+neorc -L | sed 's/[0-9]s$/x/'
+EOF
+  chmod +x $NIROOT/default/run
+  ln -s /bin/true $NIROOT/ok/run
+  ln -s /bin/true $NIROOT/down/run
+  ln -s /bin/false $NIROOT/nok/run
+  ln -s /bin/false $NIROOT/setup_fail/setup
+  {
+    echo ok
+    echo down
+    echo nok
+    echo setup_fail
+  } > $NIROOT/default/depends
+
+  PATH=$PWD/debug:$PATH
+  debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+default: active x
+ok: finished x
+down: init x
+nok: failed x
+setup_fail: setupfailed x
+EOF
+}
+
 test_rc_dependencies () {
   mkdir $NIROOT/default $NIROOT/init $NIROOT/service
   cat > $NIROOT/default/run <<EOF
@@ -721,7 +754,7 @@ neorc -C down
   neorc nok
   neorc setup_fail
   neorc unknown
-} | sed 's/ [0-9]s$//'
+} 2>&1 | sed 's/[0-9]s$/x/'
 EOF
   chmod +x $NIROOT/default/run
   ln -s /bin/true $NIROOT/ok/run
@@ -738,12 +771,12 @@ EOF
   PATH=$PWD/debug:$PATH
   debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
   cat <<EOF | diff -u - $t_TEST_TMP/out >&2
-default RUNNING ACTIVE
-ok DOWN FINISHED
-down DOWN INIT
-nok DOWN FAILED
-setup_fail DOWN SETUP_FAILED
-unknown UNKNOWN UNKNOWN
+default: active x
+ok: finished x
+down: init x
+nok: failed x
+setup_fail: setupfailed x
+unknown: no such service
 EOF
 }
 
