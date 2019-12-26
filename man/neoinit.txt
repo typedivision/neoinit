@@ -41,6 +41,10 @@ USAGE
        a plain text file containing the command line parameters for the service program, one
        parameter per line.
 
+       environ
+       a plain text file containing environment variables for the service program, one vari-
+       able in the form of 'A=1 2 3' per line.
+
        respawn
        touch  this  file  to  make neoinit respawn the process when it dies.  This should be
        touched for getty and network servers.

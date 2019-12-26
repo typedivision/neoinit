@@ -258,6 +258,30 @@ EOF
 EOF
 }
 
+test_environ () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+set | grep "^ENV"
+EOF
+  chmod +x $NIROOT/default/run
+  cat > $NIROOT/default/environ <<EOF
+ENV_A=1
+ENV_B=x
+ENV_C=a b c
+EOF
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] ACTIVE
+ENV_A='1'
+ENV_B='x'
+ENV_C='a b c'
+[0:default] FINISHED
+EOF
+}
+
 test_respawn () {
   mkdir $NIROOT/default
   cat > $NIROOT/default/run <<'EOF'

@@ -264,10 +264,11 @@ pid_t forkandexec(int sid, int pause, int setup) {
   pid_t pid;
   int fd;
   unsigned long len = 0;
-  char *params = 0;
+  char *argdata = 0;
   char **argv = 0;
-  int argc = 0;
   char *argv0 = 0;
+  char *envdata = 0;
+  char **env = 0;
 again:
   switch (pid = fork()) {
   case -1:
@@ -292,13 +293,14 @@ again:
       req.tv_nsec = 500000000;
       nanosleep(&req, 0);
     }
-    if (!setup && !openreadclose("params", &params, &len)) {
-      argv = split(params, '\n', &argc, 2, 1);
-      if (argv) {
-        if (argv[argc - 1]) {
-          argv[argc - 1] = 0;
+    if (!setup && !openreadclose("params", &argdata, &len)) {
+      len = 0;
+      argv = split(argdata, '\n', &len, 2, 1);
+      if (argv && len > 0) {
+        if (!*argv[len - 1]) {
+          argv[len - 1] = 0;
         } else {
-          argv[argc] = 0;
+          argv[len] = 0;
         }
       }
     }
@@ -313,21 +315,32 @@ again:
       _exit(225);
     }
     memset(argv0, 0, PATH_MAX + 1);
-    char *run = setup ? "setup" : "run";
-    if (readlink(run, argv0, PATH_MAX) < 0) {
+    char *prog = setup ? "setup" : "run";
+    if (readlink(prog, argv0, PATH_MAX) < 0) {
       if (errno == ENOENT) {
         _exit(0);
       }
       if (errno != EINVAL) {
         _exit(227);
       }
-      argv0 = strdup(run);
+      argv0 = strdup(prog);
     }
     argv[0] = strrchr(argv0, '/');
     if (argv[0]) {
       argv[0]++;
     } else {
       argv[0] = argv0;
+    }
+    if (!setup && !openreadclose("environ", &envdata, &len)) {
+      len = 0;
+      if (env = split(envdata, '\n', &len, 0, 0)) {
+        for (int i = 0; i < len; ++i) {
+          if (*env[i]) {
+            putenv(env[i]);
+          }
+        }
+        free(env);
+      }
     }
     if (slist[sid].__stdin != 0) {
       if (dup2(slist[sid].__stdin, 0)) {

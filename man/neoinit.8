@@ -50,6 +50,10 @@ Each of these services will be started before this service is started.
 a plain text file containing the command line parameters for the
 service program, one parameter per line.
 .TP
+.B environ
+a plain text file containing environment variables for the
+service program, one variable in the form of 'A=1 2 3' per line.
+.TP
 .B respawn
 touch this file to make
 .B neoinit
