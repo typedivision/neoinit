@@ -27,11 +27,14 @@ If none of the services worked (or none were given),
 .B neoinit
 will spawn the service "default".
 .PP
-.PP
 Optionally if a service "boot" was found, it is startet before the control pipes for
 .B neorc
 are opened.
 This is necessary eg. to mount overlayfs media to make a read-only /etc directory writeable.
+.PP
+For global configurations there is a plain text file /etc/neorc/neo.conf that can contain one
+name=value per line. The entries become part of the environment variables for each started service.
+The neo.conf file is read after boot and before default service.
 .PP
 Each service directory can contain the following files:
 .TP 0

@@ -519,6 +519,21 @@ int main(int argc, char *argv[]) {
     nfds = 0;
   }
 
+  unsigned long len = 0;
+  char *confdata = 0;
+  char **conf = 0;
+  if (!openreadclose(NIROOT "/neo.conf", &confdata, &len)) {
+    len = 0;
+    if (conf = split(confdata, '\n', &len, 0, 0)) {
+      for (int i = 0; i < len; ++i) {
+        if (*conf[i]) {
+          putenv(conf[i]);
+        }
+      }
+      free(conf);
+    }
+  }
+
   int count = 0;
   for (int i = 1; i < argc; i++) {
     circsweep();

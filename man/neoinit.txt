@@ -23,6 +23,11 @@ USAGE
        neorc are opened.  This is necessary eg. to mount overlayfs media to make a read-only
        /etc directory writeable.
 
+       For global configurations there is a plain text  file  /etc/neorc/neo.conf  that  can
+       contain one name=value per line. The entries become part of the environment variables
+       for each started service.  The neo.conf file is read after boot  and  before  default
+       service.
+
        Each service directory can contain the following files:
 
        run

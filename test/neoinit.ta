@@ -159,6 +159,30 @@ test_start_fail_exit_link () {
 EOF
 }
 
+test_conf () {
+  mkdir $NIROOT/default
+  cat > $NIROOT/default/run <<'EOF'
+#!/bin/sh
+set | grep "^ENV"
+EOF
+  chmod +x $NIROOT/default/run
+  cat > $NIROOT/neo.conf <<EOF
+ENV_A=0
+ENV_B=a
+ENV_C=x y z
+EOF
+
+  debug/neoinit | grep -v pid >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+[0:default] starting
+[0:default] ACTIVE
+ENV_A='0'
+ENV_B='a'
+ENV_C='x y z'
+[0:default] FINISHED
+EOF
+}
+
 test_setup () {
   mkdir $NIROOT/default
   cat > $NIROOT/default/run <<EOF
