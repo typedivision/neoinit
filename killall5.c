@@ -35,7 +35,9 @@ int main(int argc, char **argv) {
   }
 
   if ((signal < 1) || (signal > 31)) {
-    write(2, USAGE, sizeof USAGE - 1);
+    if (write(2, USAGE, sizeof USAGE - 1) < 0) {
+      return 2;
+    }
     return 1;
   }
 
@@ -61,7 +63,9 @@ int main(int argc, char **argv) {
 
   kill(-1, SIGCONT);
   if (!sig_sent) {
-    write(2, NOPROC, sizeof NOPROC - 1);
+    if (write(2, NOPROC, sizeof NOPROC - 1) < 0) {
+      return 2;
+    }
     return 1;
   }
 

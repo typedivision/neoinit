@@ -15,12 +15,17 @@ static int infd, outfd;
 
 static char buf[BUFSIZE + 1];
 
+void write_checked(int fd, const char *s, unsigned long len) {
+  if (write(fd, s, len) != len) {
+    carp("write failed!");
+  }
+}
+
 int addservice(char *service) {
-  char *x;
   if (str_start(service, NIROOT "/")) {
     service += sizeof(NIROOT "/") - 1;
   }
-  x = service + str_len(service) - 1;
+  char *x = service + str_len(service) - 1;
   while (x > service && *x == '/') {
     *x = 0;
     --x;
@@ -32,15 +37,14 @@ int addservice(char *service) {
 
 int addreadwrite(char *service) {
   int buf_len = addservice(service);
-  write(infd, buf, buf_len);
+  write_checked(infd, buf, buf_len);
   return read(outfd, buf, BUFSIZE);
 }
 
 /* return PID, 0 if error */
 pid_t __readpid(char *service, int *state) {
-  int len;
   buf[0] = 'p';
-  len = addreadwrite(service);
+  int len = addreadwrite(service);
   if (len < 1) {
     return 0;
   }
@@ -61,57 +65,50 @@ pid_t __readpid(char *service, int *state) {
 
 /* return nonzero if error */
 int respawn(char *service, int yesno) {
-  int len;
   buf[0] = yesno ? 'R' : 'r';
-  len = addreadwrite(service);
+  int len = addreadwrite(service);
   return (len != 1 || buf[0] == '0');
 }
 
 /* return nonzero if error */
 int cancel(char *service) {
-  int len;
   buf[0] = 'c';
-  len = addreadwrite(service);
+  int len = addreadwrite(service);
   return (len != 1 || buf[0] == '0');
 }
 
 /* return nonzero if error */
 int setpid(char *service, pid_t pid) {
-  char *tmp;
-  int len;
   buf[0] = 'P';
   int buf_len = addservice(service);
   if (buf_len + 10 > BUFSIZE) {
     return 0;
   }
-  tmp = buf + buf_len + 1;
+  char *tmp = buf + buf_len + 1;
   tmp[fmt_ulong(tmp, pid)] = 0;
-  write(infd, buf, buf_len + str_len(tmp) + 2);
-  len = read(outfd, buf, BUFSIZE);
+  write_checked(infd, buf, buf_len + str_len(tmp) + 2);
+  int len = read(outfd, buf, BUFSIZE);
   return (len != 1 || buf[0] == '0');
 }
 
 /* return nonzero if error */
 int clear(char *service) {
-  int len;
   buf[0] = 'C';
-  len = addreadwrite(service);
+  int len = addreadwrite(service);
   return (len != 1 || buf[0] == '0');
 }
 
 /* return nonzero if error */
 int startservice(char *service) {
-  int len;
   buf[0] = 's';
-  len = addreadwrite(service);
+  int len = addreadwrite(service);
   return (len != 1 || buf[0] == '0');
 }
 
 /* return uptime, 0 if error */
 unsigned long uptime(char *service) {
-  int len;
   buf[0] = 'u';
-  len = addreadwrite(service);
+  int len = addreadwrite(service);
   if (len < 0) {
     return 0;
   }
@@ -121,13 +118,13 @@ unsigned long uptime(char *service) {
 
 void dumpservices(char dump_cmd) {
   char tmp[16384];
-  int i, j;
-  char first, last;
-  first = 1;
-  last = 'x';
-  write(infd, &dump_cmd, 1);
+  int i = 0;
+  int j = 0;
+  int done = 0;
+  char first = 1;
+  char last = 'x';
+  write_checked(infd, &dump_cmd, 1);
   for (;;) {
-    int done;
     j = read(outfd, tmp, sizeof(tmp));
     if (j < 1) {
       break;
@@ -154,9 +151,9 @@ void dumpservices(char dump_cmd) {
       }
     }
     if (first) {
-      write(1, tmp + 2, j - 2);
+      write_checked(1, tmp + 2, j - 2);
     } else {
-      write(1, tmp, j);
+      write_checked(1, tmp, j);
     }
     if (done) {
       break;
@@ -168,15 +165,15 @@ void dumpservices(char dump_cmd) {
 
 void dumpdependencies(char *service) {
   char tmp[16384];
-  int i, j;
-  char first, last;
+  int i = 0;
+  int j = 0;
+  int done = 0;
+  char first = 1;
+  char last = 'x';
   buf[0] = 'd';
   int buf_len = addservice(service);
-  write(infd, buf, buf_len);
-  first = 1;
-  last = 'x';
+  write_checked(infd, buf, buf_len);
   for (;;) {
-    int done;
     j = read(outfd, tmp, sizeof(tmp));
     if (j < 1) {
       break;
@@ -203,9 +200,9 @@ void dumpdependencies(char *service) {
       }
     }
     if (first) {
-      write(1, tmp + 2, j - 2);
+      write_checked(1, tmp + 2, j - 2);
     } else {
-      write(1, tmp, j);
+      write_checked(1, tmp, j);
     }
     if (done) {
       break;
@@ -260,23 +257,22 @@ int main(int argc, char *argv[]) {
       carp(argv[1], ": no such service");
       return 1;
     }
-    int i;
     int ret = 0;
     int sig = 0;
-    pid_t pid;
+    pid_t pid = 0;
     if (argv[1][0] == '-') {
       switch (argv[1][1]) {
       case 'g':
-        for (i = 2; i < argc; ++i) {
+        for (int i = 2; i < argc; ++i) {
           pid = __readpid(argv[i], NULL);
           if (pid < 2) {
             carp(argv[i], pid == 0 ? ": no such service" : ": service not running");
             ret = 1;
           } else {
             char tmp[FMT_ULONG];
-            int i;
-            tmp[i = fmt_ulong(tmp, pid)] = '\n';
-            write(1, tmp, i + 1);
+            int len = 0;
+            tmp[len = fmt_ulong(tmp, pid)] = '\n';
+            write_checked(1, tmp, len + 1);
           }
         }
         break;
@@ -289,7 +285,7 @@ int main(int argc, char *argv[]) {
         goto dokill;
         break;
       case 'o':
-        for (i = 2; i < argc; ++i) {
+        for (int i = 2; i < argc; ++i) {
           if (startservice(argv[i]) || respawn(argv[i], 0)) {
             carp("could not start ", argv[i]);
             ret = 1;
@@ -297,7 +293,7 @@ int main(int argc, char *argv[]) {
         }
         break;
       case 'd':
-        for (i = 2; i < argc; ++i) {
+        for (int i = 2; i < argc; ++i) {
           pid = __readpid(argv[i], NULL);
           if (pid == 0) {
             carp(argv[i], ": no such service");
@@ -314,7 +310,7 @@ int main(int argc, char *argv[]) {
         }
         break;
       case 'R':
-        for (i = 2; i < argc; ++i) {
+        for (int i = 2; i < argc; ++i) {
           if (respawn(argv[i], 1)) {
             carp("could not set respawn for ", argv[i]);
             ret = 1;
@@ -322,7 +318,7 @@ int main(int argc, char *argv[]) {
         }
         break;
       case 'r':
-        for (i = 2; i < argc; ++i) {
+        for (int i = 2; i < argc; ++i) {
           if (respawn(argv[i], 0)) {
             carp("could not unset respawn for ", argv[i]);
             ret = 1;
@@ -330,7 +326,7 @@ int main(int argc, char *argv[]) {
         }
         break;
       case 'u':
-        for (i = 2; i < argc; ++i) {
+        for (int i = 2; i < argc; ++i) {
           if (startservice(argv[i]) || respawn(argv[i], 1)) {
             carp("could not start ", argv[i]);
             ret = 1;
@@ -338,7 +334,7 @@ int main(int argc, char *argv[]) {
         }
         break;
       case 'C':
-        for (i = 2; i < argc; ++i) {
+        for (int i = 2; i < argc; ++i) {
           if (clear(argv[i])) {
             carp(argv[i], " could not be cleared");
             ret = 1;
@@ -367,7 +363,7 @@ int main(int argc, char *argv[]) {
     }
     return ret;
   dokill:
-    for (i = 2; i < argc; ++i) {
+    for (int i = 2; i < argc; ++i) {
       pid = __readpid(argv[i], NULL);
       if (pid < 2) {
         carp(argv[i], pid == 0 ? ": no such service" : ": service not running");
@@ -375,7 +371,7 @@ int main(int argc, char *argv[]) {
       } else if (kill(pid, sig)) {
         char sigstr[FMT_ULONG];
         char pidstr[FMT_ULONG];
-        char *err;
+        char *err = 0;
         switch (errno) {
         case EINVAL:
           err = "invalid signal";

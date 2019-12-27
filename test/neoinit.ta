@@ -487,7 +487,7 @@ init
 EOF
 }
 
-test_rc_up_down_multi () {
+test_rc_up_down_many () {
   mkdir $NIROOT/default $NIROOT/init1
   cat > $NIROOT/default/run <<EOF
 #!/bin/sh

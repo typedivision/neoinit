@@ -10,12 +10,12 @@ can be used as UNIX process no 1
 .SH DESCRIPTION
 .B neoinit
 can start, stop and monitor services.
-Each service gets its own directory under /etc/neorc containing
+Each service gets its own directory under /etc/neoinit containing
 at least a program file or a symlink to an executable to start.
 .PP
 With no given \fISERVICE\fR
 .B neoinit
-will start the service defined in /etc/neorc/default
+will start the service defined in /etc/neoinit/default
 which usually contains a file named
 .B depends
 specifying which other services are to be started at bootup.
@@ -27,12 +27,12 @@ If none of the services worked (or none were given),
 .B neoinit
 will spawn the service "default".
 .PP
-Optionally if a service "boot" was found, it is startet before the control pipes for
+Optionally if a service "boot" was found, it is started before the control pipes for
 .B neorc
 are opened.
 This is necessary eg. to mount overlayfs media to make a read-only /etc directory writeable.
 .PP
-For global configurations there is a plain text file /etc/neorc/neo.conf that can contain one
+For global configurations there is a plain text file /etc/neoinit/neo.conf that can contain one
 name=value per line. The entries become part of the environment variables for each started service.
 The neo.conf file is read after boot and before default service.
 .PP

@@ -28,7 +28,7 @@ void errmsg_puts(int fd,const char* s) {
 void errmsg_flush(int fd) {
   int n=l;
   l=0;
-  if (n) writev(fd,x,n);
+  if (n) n = writev(fd,x,n);
 }
 #endif
 

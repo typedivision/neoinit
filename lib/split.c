@@ -2,8 +2,8 @@
 
 /* split buf into n strings that are separated by sep, return n as len
  * allocate plus more slots and leave the first ofs of them alone */
-char **split(char *buf, int sep, int *len, int plus, int ofs) {
-  int n = 1;
+char **split(char *buf, int sep, unsigned long *len, int plus, int ofs) {
+  unsigned long n = 1;
   char **v = 0;
   char **w;
   /* step 1: count tokens */

@@ -9,8 +9,12 @@
 #define USAGE "Say 'hard-reboot (RESTART|HALT|POWER_OFF)' if you really mean it.\n"
 
 void usage(void) {
-  write(2, ABORTMSG, str_len(ABORTMSG));
-  write(2, USAGE, str_len(USAGE));
+  if (write(2, ABORTMSG, str_len(ABORTMSG)) < 0) {
+    exit(2);
+  }
+  if (write(2, USAGE, str_len(USAGE)) < 0) {
+    exit(2);
+  }
   exit(1);
 }
 

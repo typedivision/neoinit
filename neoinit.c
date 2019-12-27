@@ -5,6 +5,7 @@
 #include <linux/kd.h>
 #include <poll.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -12,9 +13,6 @@
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-#ifdef DEBUG
-#include <stdio.h>
-#endif
 
 #include "djb/fmt.h"
 #include "djb/str.h"
@@ -34,6 +32,7 @@ typedef struct {
 } svc_t;
 
 static svc_t *slist;
+static char *confdata;
 
 static int svc_max = -1;
 static int svc_alloc;
@@ -43,8 +42,23 @@ static int infd, outfd;
 #define HISTORY 15
 static int history[HISTORY];
 
-static void wout(const char *s) { write(1, s, str_len(s)); }
-static void werr(const char *s) { write(2, s, str_len(s)); }
+static void wout(const char *s) {
+  unsigned long len = str_len(s);
+  if (write(1, s, len) != len) {
+    fprintf(stderr, "neoinit: write out failed!\n");
+  }
+}
+static void werr(const char *s) {
+  unsigned long len = str_len(s);
+  if (write(2, s, len) != len) {
+    fprintf(stderr, "neoinit: write err failed!\n");
+  }
+}
+static void write_checked(int fd, const char *s, unsigned long len) {
+  if (write(fd, s, len) != len) {
+    werr("neoinit: write failed!\n");
+  }
+}
 #ifdef DEBUG
 #define dbg(...)                                                                                   \
   printf(__VA_ARGS__);                                                                             \
@@ -56,7 +70,7 @@ static void werr(const char *s) { write(2, s, str_len(s)); }
 extern char **environ;
 
 extern int openreadclose(char *fn, char **buf, unsigned long *len);
-extern char **split(char *buf, int sep, int *len, int plus, int ofs);
+extern char **split(char *buf, int sep, unsigned long *len, int plus, int ofs);
 
 /* return index of service or -1 if not found */
 int findservice(char *service) {
@@ -88,7 +102,7 @@ void circsweep() {
 /* add service data structure, return index or -1 */
 int addsvc(svc_t *svc) {
   if (svc_max + 1 >= svc_alloc) {
-    svc_t *slist_ext;
+    svc_t *slist_ext = 0;
     svc_alloc += 8;
     if ((slist_ext = (svc_t *)realloc(slist, svc_alloc * sizeof(svc_t))) == 0) {
       return -1;
@@ -177,6 +191,7 @@ int isrunning(int sid) {
 }
 
 int startservice(int sid, int pause, int sid_father);
+int startnodep(int sid, int pause, int setup);
 
 void handlekilled(pid_t killed, int status) {
   if (!killed) {
@@ -206,7 +221,7 @@ void handlekilled(pid_t killed, int status) {
         if (len > 0) {
           pidbuf[len] = 0;
           char *x = pidbuf;
-          unsigned char c;
+          unsigned char c = 0;
           pid_t pid = 0;
           while ((c = *x++ - '0') < 10) {
             pid = pid * 10 + c;
@@ -261,8 +276,8 @@ void handlekilled(pid_t killed, int status) {
 /* called from inside the service directory, return the PID or 0 on error */
 pid_t forkandexec(int sid, int pause, int setup) {
   int count = 0;
-  pid_t pid;
-  int fd;
+  pid_t pid = 0;
+  int fd = 0;
   unsigned long len = 0;
   char *argdata = 0;
   char **argv = 0;
@@ -333,7 +348,8 @@ again:
     }
     if (!setup && !openreadclose("environ", &envdata, &len)) {
       len = 0;
-      if (env = split(envdata, '\n', &len, 0, 0)) {
+      env = split(envdata, '\n', &len, 0, 0);
+      if (env) {
         for (int i = 0; i < len; ++i) {
           if (*env[i]) {
             putenv(env[i]);
@@ -422,12 +438,12 @@ int startservice(int sid, int pause, int sid_father) {
   }
   if ((dir = open(".", O_RDONLY | O_CLOEXEC)) >= 0) {
     unsigned long len = 0;
-    char *depends = 0;
-    if (!openreadclose("depends", &depends, &len)) {
-      int depc = 0;
-      char **depv = split(depends, '\n', &depc, 0, 0);
+    char *depdata = 0;
+    if (!openreadclose("depends", &depdata, &len)) {
+      len = 0;
+      char **depv = split(depdata, '\n', &len, 0, 0);
       if (depv) {
-        for (int i = 0; i < depc; ++i) {
+        for (int i = 0; i < len; ++i) {
           if (depv[i][0] == 0 || depv[i][0] == '#') {
             continue;
           }
@@ -439,8 +455,11 @@ int startservice(int sid, int pause, int sid_father) {
         }
         free(depv);
       }
-      free(depends);
-      fchdir(dir);
+      free(depdata);
+      if (fchdir(dir)) {
+        close(dir);
+        return -1;
+      }
     }
     close(dir);
     int setup = 0;
@@ -455,7 +474,7 @@ int startservice(int sid, int pause, int sid_father) {
 }
 
 void childhandler() {
-  pid_t killed;
+  pid_t killed = 0;
   int status = 0;
   do {
     killed = waitpid(-1, &status, WNOHANG);
@@ -477,6 +496,9 @@ void childhandler() {
   if (killed == -1) {
     if (iam_init) {
       wout("neoinit: all services exited\n");
+    }
+    if (confdata) {
+      free(confdata);
     }
     for (int sid = 0; sid <= svc_max; ++sid) {
       free(slist[sid].name);
@@ -520,11 +542,11 @@ int main(int argc, char *argv[]) {
   }
 
   unsigned long len = 0;
-  char *confdata = 0;
   char **conf = 0;
   if (!openreadclose(NIROOT "/neo.conf", &confdata, &len)) {
     len = 0;
-    if (conf = split(confdata, '\n', &len, 0, 0)) {
+    conf = split(confdata, '\n', &len, 0, 0);
+    if (conf) {
       for (int i = 0; i < len; ++i) {
         if (*conf[i]) {
           putenv(conf[i]);
@@ -547,9 +569,8 @@ int main(int argc, char *argv[]) {
   }
 
   for (;;) {
-    int len;
     char buf[BUFSIZE + 1];
-    time_t now;
+    time_t now = 0;
     childhandler();
     now = time(0);
     if (now < last || now - last > 30) {
@@ -575,15 +596,15 @@ int main(int argc, char *argv[]) {
         buf[len] = 0;
         if (buf[0] != 's' && ((sid = findservice(buf + 1)) < 0) && strcmp(buf, "d-") != 0) {
         error:
-          write(outfd, "0", 1);
+          write_checked(outfd, "0", 1);
         } else {
           switch (buf[0]) {
           case 'p': // get service pid and state
             len = fmt_long(buf, slist[sid].pid);
             buf[len++] = '@';
             len += fmt_ulong(buf + len, slist[sid].state);
-            buf[len++] = "\0";
-            write(outfd, buf, len);
+            buf[len++] = 0;
+            write_checked(outfd, buf, len);
             break;
           case 'r': // unset service respawn
             slist[sid].respawn = 0;
@@ -608,7 +629,7 @@ int main(int argc, char *argv[]) {
             goto ok;
           case 'P': { // set service pid
             char *x = buf + str_len(buf) + 1;
-            unsigned char c;
+            unsigned char c = 0;
             pid_t pid = 0;
             while ((c = *x++ - '0') < 10) {
               pid = pid * 10 + c;
@@ -643,49 +664,49 @@ int main(int argc, char *argv[]) {
               }
             }
           ok:
-            write(outfd, "1", 1);
+            write_checked(outfd, "1", 1);
             break;
           case 'u': // get service uptime
-            write(outfd, buf, fmt_ulong(buf, time(0) - slist[sid].changed_at));
+            write_checked(outfd, buf, fmt_ulong(buf, time(0) - slist[sid].changed_at));
             break;
           case 'd': // get service dependencies
             len = 0;
-            write(outfd, "1:", 2);
+            write_checked(outfd, "1:", 2);
             dbg("[neoinit] looking for father = sid %d\n", sid);
             for (int i = 0; i <= svc_max; ++i) {
               if (slist[i].sid_father == sid) {
-                write(outfd, slist[i].name, str_len(slist[i].name) + 1);
+                write_checked(outfd, slist[i].name, str_len(slist[i].name) + 1);
                 len = 1;
               }
             }
             if (!len) {
-              write(outfd, "\0\0", 2);
+              write_checked(outfd, "\0\0", 2);
             } else {
-              write(outfd, "\0", 1);
+              write_checked(outfd, "\0", 1);
             }
             break;
           }
         }
       } else {
         if (buf[0] == 'h') { // get service history
-          write(outfd, "1:", 2);
+          write_checked(outfd, "1:", 2);
           for (int i = 0; i < HISTORY; ++i) {
             if (history[i] != -1) {
-              write(outfd, slist[history[i]].name, str_len(slist[history[i]].name) + 1);
+              write_checked(outfd, slist[history[i]].name, str_len(slist[history[i]].name) + 1);
             }
           }
-          write(outfd, "\0", 1);
+          write_checked(outfd, "\0", 1);
         } else if (buf[0] == 'l') { // get service list
-          write(outfd, "1:", 2);
+          write_checked(outfd, "1:", 2);
           for (int i = 0; i <= svc_max; ++i) {
-            write(outfd, slist[i].name, str_len(slist[i].name));
-            write(outfd, ": ", 2);
-            write(outfd, buf, fmt_state(buf, slist[i].state));
-            write(outfd, " ", 1);
-            write(outfd, buf, fmt_ulong(buf, time(0) - slist[i].changed_at));
-            write(outfd, "s\0", 2);
+            write_checked(outfd, slist[i].name, str_len(slist[i].name));
+            write_checked(outfd, ": ", 2);
+            write_checked(outfd, buf, fmt_state(buf, slist[i].state));
+            write_checked(outfd, " ", 1);
+            write_checked(outfd, buf, fmt_ulong(buf, time(0) - slist[i].changed_at));
+            write_checked(outfd, "s\0", 2);
           }
-          write(outfd, "\0", 1);
+          write_checked(outfd, "\0", 1);
         }
       }
       break;

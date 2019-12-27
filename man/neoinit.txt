@@ -8,10 +8,10 @@ SYNOPSIS
 
 DESCRIPTION
        neoinit  can  start,  stop and monitor services.  Each service gets its own directory
-       under /etc/neorc containing at least a program file or a symlink to an executable  to
-       start.
+       under /etc/neoinit containing at least a program file or a symlink to  an  executable
+       to start.
 
-       With no given SERVICE neoinit will start the service  defined  in  /etc/neorc/default
+       With  no given SERVICE neoinit will start the service defined in /etc/neoinit/default
        which usually contains a file named depends specifying which other services are to be
        started at bootup.
 
@@ -19,11 +19,11 @@ USAGE
        neoinit will try to run the command line arguments as services.  If none of the  ser‐
        vices worked (or none were given), neoinit will spawn the service "default".
 
-       Optionally  if a service "boot" was found, it is startet before the control pipes for
+       Optionally  if a service "boot" was found, it is started before the control pipes for
        neorc are opened.  This is necessary eg. to mount overlayfs media to make a read-only
        /etc directory writeable.
 
-       For global configurations there is a plain text  file  /etc/neorc/neo.conf  that  can
+       For  global  configurations there is a plain text file /etc/neoinit/neo.conf that can
        contain one name=value per line. The entries become part of the environment variables
        for each started service.  The neo.conf file is read after boot  and  before  default
        service.

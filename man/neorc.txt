@@ -8,7 +8,7 @@ SYNOPSIS
 
 DESCRIPTION
        neorc  is  the management interface to neoinit.  SERVICE is a directory name relative
-       to /etc/neorc (can also include /etc/neorc/ in the service name).
+       to /etc/neoinit (can also include /etc/neoinit/ in the service name).
 
 OPTIONS
        If no option is given, neorc will just print a small diagnostic  message  to  stdout,
@@ -52,7 +52,8 @@ OPTIONS
 
 EXIT STATUS
        Generally,  neorc  returns 0 if everything is ok or 1 if an error has occurred (could
-       not open /etc/neorc/in or /etc/neorc/out or there is no service with the given name).
+       not  open  /etc/neoinit/in  or /etc/neoinit/out or there is no service with the given
+       name).
 
 AUTHOR
        neorc is based on msvc written by Felix von Leitner.  http://www.fefe.de/minit/
