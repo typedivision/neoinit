@@ -49,31 +49,37 @@ EOF
 }
 
 test_start_boot () {
-  mkdir $NIROOT/default $NIROOT/boot
+  mkdir $NIROOT/default $NIROOT/boot $NIROOT/sysinit
   cat > $NIROOT/default/run <<EOF
 #!/bin/sh
-sleep 2
 echo default
-sleep 2
 EOF
   cat > $NIROOT/boot/run <<EOF
 #!/bin/sh
-sleep 1
 echo boot
-sleep 2
 EOF
-  chmod +x $NIROOT/default/run $NIROOT/boot/run
+  cat > $NIROOT/sysinit/run <<EOF
+#!/bin/sh
+echo sysinit
+EOF
+  chmod +x $NIROOT/default/run $NIROOT/boot/run $NIROOT/sysinit/run
+  echo sysinit > $NIROOT/boot/depends
 
   debug/neoinit | grep -v pid >$t_TEST_TMP/out
   cat <<EOF | diff -u - $t_TEST_TMP/out >&2
 [0:boot] starting
+[0:boot] depends: sysinit
+[1:sysinit] starting
+[1:sysinit] ACTIVE
+sysinit
+[1:sysinit] FINISHED
 [0:boot] ACTIVE
-[1:default] starting
-[1:default] ACTIVE
 boot
-default
 [0:boot] FINISHED
-[1:default] FINISHED
+[2:default] starting
+[2:default] ACTIVE
+default
+[2:default] FINISHED
 EOF
 }
 

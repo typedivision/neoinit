@@ -277,7 +277,7 @@ void handlekilled(pid_t killed, int status) {
 pid_t forkandexec(int sid, int pause, int setup) {
   int count = 0;
   pid_t pid = 0;
-  int fd = 0;
+  int sync = 0;
   unsigned long len = 0;
   char *argdata = 0;
   char **argv = 0;
@@ -382,9 +382,17 @@ again:
   default:
     dbg("[%d:%s] pid %d\n", sid, slist[sid].name, pid);
     slist[sid].pid = pid;
-    fd = open("sync", O_RDONLY | O_CLOEXEC);
-    if (fd >= 0) {
-      close(fd);
+    // sync on service 'boot' and depends
+    if ((sid == 0 || slist[sid].sid_father == 0) && !strcmp(slist[0].name, "boot")) {
+      sync = 1;
+    } else {
+      int fd = open("sync", O_RDONLY | O_CLOEXEC);
+      if (fd >= 0) {
+        close(fd);
+        sync = 1;
+      }
+    }
+    if (sync) {
       int status = 0;
       waitpid(pid, &status, 0);
       slist[sid].respawn = 0;
