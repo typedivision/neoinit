@@ -330,15 +330,15 @@ again:
       _exit(225);
     }
     memset(argv0, 0, PATH_MAX + 1);
-    char *prog = setup ? "setup" : "run";
-    if (readlink(prog, argv0, PATH_MAX) < 0) {
+    char *cmd = setup ? "setup" : "run";
+    if (readlink(cmd, argv0, PATH_MAX) < 0) {
       if (errno == ENOENT) {
         _exit(0);
       }
       if (errno != EINVAL) {
         _exit(227);
       }
-      argv0 = strdup(prog);
+      strcpy(argv0, cmd);
     }
     argv[0] = strrchr(argv0, '/');
     if (argv[0]) {
@@ -357,6 +357,12 @@ again:
         }
         free(env);
       }
+    }
+    char *ni_svc = (char *)alloca(str_len(slist[sid].name) + 8);
+    if (ni_svc) {
+      strcpy(ni_svc, "NI_SVC=");
+      strcat(ni_svc, slist[sid].name);
+      putenv(ni_svc);
     }
     if (slist[sid].__stdin != 0) {
       if (dup2(slist[sid].__stdin, 0)) {
