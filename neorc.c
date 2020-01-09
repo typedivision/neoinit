@@ -253,6 +253,7 @@ int main(int argc, char *argv[]) {
           return 0;
         }
         carp(argv[1], ": get pid failed");
+        return 1;
       }
       carp(argv[1], ": no such service");
       return 1;

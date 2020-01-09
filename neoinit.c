@@ -238,10 +238,10 @@ void handlekilled(pid_t killed, int status) {
   if (slist[sid].state != SID_STOPPED) { // has been stopped
     if (slist[sid].state == SID_SETUP) { // was setup
       if (WIFEXITED(status) && WEXITSTATUS(status)) {
-        dbg("[%d:%s] SETUP_FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
-        slist[sid].state = SID_SETUP_FAILED;
+        dbg("[%d:%s] CANCELED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
+        slist[sid].state = SID_CANCELED;
       } else {
-        dbg("[%d:%s] SETUP_FINISHED\n", sid, slist[sid].name);
+        dbg("[%d:%s] INIT\n", sid, slist[sid].name);
         slist[sid].state = SID_INIT;
       }
     } else { // was active
@@ -260,10 +260,8 @@ void handlekilled(pid_t killed, int status) {
   slist[sid].pid = PID_DOWN;
 
   if (slist[sid].state == SID_INIT) {
-    dbg("[%d:%s] INIT\n", sid, slist[sid].name);
-    slist[sid].state = SID_INIT;
     startnodep(sid, 0, 0);
-  } else if (slist[sid].state != SID_STOPPED && slist[sid].state != SID_SETUP_FAILED &&
+  } else if (slist[sid].state != SID_STOPPED && slist[sid].state != SID_CANCELED &&
              slist[sid].respawn) {
     dbg("[%d:%s] respawn\n", sid, slist[sid].name);
     dbg("[%d:%s] INIT\n", sid, slist[sid].name);

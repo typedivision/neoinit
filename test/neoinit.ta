@@ -207,7 +207,6 @@ EOF
 [0:default] starting
 [0:default] SETUP
 setup
-[0:default] SETUP_FINISHED
 [0:default] INIT
 [0:default] ACTIVE
 default
@@ -215,7 +214,7 @@ default
 EOF
 }
 
-test_setup_failed () {
+test_setup_nok () {
   mkdir $NIROOT/default
   cat > $NIROOT/default/run <<EOF
 #!/bin/sh
@@ -234,7 +233,7 @@ EOF
 [0:default] starting
 [0:default] SETUP
 setup
-[0:default] SETUP_FAILED 9
+[0:default] CANCELED 9
 EOF
 }
 
@@ -738,7 +737,7 @@ EOF
 }
 
 test_rc_list () {
-  for d in default ok down nok setup_fail; do
+  for d in default ok down nok setup_nok; do
     mkdir $NIROOT/$d
   done
   cat > $NIROOT/default/run <<EOF
@@ -751,12 +750,12 @@ EOF
   ln -s /bin/true $NIROOT/ok/run
   ln -s /bin/true $NIROOT/down/run
   ln -s /bin/false $NIROOT/nok/run
-  ln -s /bin/false $NIROOT/setup_fail/setup
+  ln -s /bin/false $NIROOT/setup_nok/setup
   {
     echo ok
     echo down
     echo nok
-    echo setup_fail
+    echo setup_nok
   } > $NIROOT/default/depends
 
   PATH=$PWD/debug:$PATH
@@ -766,7 +765,7 @@ default: active x
 ok: finished x
 down: init x
 nok: failed x
-setup_fail: setupfailed x
+setup_nok: canceled x
 EOF
 }
 
@@ -795,7 +794,7 @@ EOF
 }
 
 test_rc_no_opt () {
-  for d in default ok down nok setup_fail; do
+  for d in default ok down nok setup_nok; do
     mkdir $NIROOT/$d
   done
   cat > $NIROOT/default/run <<EOF
@@ -807,7 +806,7 @@ neorc -C down
   neorc ok
   neorc down
   neorc nok
-  neorc setup_fail
+  neorc setup_nok
   neorc unknown
 } 2>&1 | sed 's/[0-9]s$/x/'
 EOF
@@ -815,12 +814,12 @@ EOF
   ln -s /bin/true $NIROOT/ok/run
   ln -s /bin/true $NIROOT/down/run
   ln -s /bin/false $NIROOT/nok/run
-  ln -s /bin/false $NIROOT/setup_fail/setup
+  ln -s /bin/false $NIROOT/setup_nok/setup
   {
     echo ok
     echo down
     echo nok
-    echo setup_fail
+    echo setup_nok
   } > $NIROOT/default/depends
 
   PATH=$PWD/debug:$PATH
@@ -830,7 +829,7 @@ default: active x
 ok: finished x
 down: init x
 nok: failed x
-setup_fail: setupfailed x
+setup_nok: canceled x
 unknown: no such service
 EOF
 }
@@ -867,7 +866,6 @@ EOF
   cat <<EOF | diff -u - $t_TEST_TMP/out >&2
 [0:default] starting
 [0:default] SETUP
-[0:default] SETUP_FINISHED
 [0:default] INIT
 [0:default] ACTIVE
 default
