@@ -11,9 +11,8 @@ DESCRIPTION
        to /etc/neoinit (can also include /etc/neoinit/ in the service name).
 
 OPTIONS
-       If no option is given, neorc will just print a small diagnostic  message  to  stdout,
-       saying  if  the service is up, down, finished or failed, and for how long it has been
-       in that state.
+       If no option is given, neorc will just print a small  diagnostic  message  to  stdout
+       about the current state of the service and for how long it has been in that state.
 
        -o   Once.  If the service is not running, start it.  If it stops, do not restart it.
 
@@ -30,7 +29,9 @@ OPTIONS
 
        -k   Kill.  Send the service a KILL signal.
 
-       -g   Get PID.  Just print the PID of the service if it is running.
+       -s   Get state.  Print the current state of the given service.
+
+       -g   Get PID.  Print the PID of the service if it is running.
 
        -C   Clear.  If the service is finished, reset its state.  This is useful if a depen‐
             dency of a service should be started again together with that service.

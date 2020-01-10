@@ -223,6 +223,7 @@ int main(int argc, char *argv[]) {
         " -r\tdisable respawn\n"
         " -t\tsend service SIGTERM\n"
         " -k\tsend service SIGKILL\n"
+        " -s\tprint the current state of the service\n"
         " -g\tget pid. print just the service PID\n"
         " -C\tclear. reset a finished service\n"
         " -P pid\tset PID of service\n"
@@ -273,6 +274,21 @@ int main(int argc, char *argv[]) {
             char tmp[FMT_ULONG];
             int len = 0;
             tmp[len = fmt_ulong(tmp, pid)] = '\n';
+            write_checked(1, tmp, len + 1);
+          }
+        }
+        break;
+      case 's':
+        for (int i = 2; i < argc; ++i) {
+          int state;
+          pid = __readpid(argv[i], &state);
+          if (pid == 0) {
+            carp(argv[i], ": no such service");
+            ret = 1;
+          } else {
+            char tmp[FMT_STATE];
+            int len = 0;
+            tmp[len = fmt_state(tmp, state)] = '\n';
             write_checked(1, tmp, len + 1);
           }
         }

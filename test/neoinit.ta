@@ -632,6 +632,47 @@ default
 EOF
 }
 
+test_rc_get_state () {
+  for d in default ok down nok setup_nok; do
+    mkdir $NIROOT/$d
+  done
+  cat > $NIROOT/default/run <<EOF
+#!/bin/sh
+sleep 6
+neorc -C down
+{
+  neorc -s default
+  neorc -s ok
+  neorc -s down
+  neorc -s nok
+  neorc -s setup_nok
+  neorc -s unknown
+} 2>&1 | sed 's/[0-9]s$/x/'
+EOF
+  chmod +x $NIROOT/default/run
+  ln -s /bin/true $NIROOT/ok/run
+  ln -s /bin/true $NIROOT/down/run
+  ln -s /bin/false $NIROOT/nok/run
+  ln -s /bin/false $NIROOT/setup_nok/setup
+  {
+    echo ok
+    echo down
+    echo nok
+    echo setup_nok
+  } > $NIROOT/default/depends
+
+  PATH=$PWD/debug:$PATH
+  debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
+  cat <<EOF | diff -u - $t_TEST_TMP/out >&2
+active
+finished
+init
+failed
+canceled
+unknown: no such service
+EOF
+}
+
 test_rc_get_pid () {
   mkdir $NIROOT/default
   cat > $NIROOT/default/run <<'EOF'

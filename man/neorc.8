@@ -15,8 +15,8 @@ is a directory name relative to /etc/neoinit
 .SH OPTIONS
 If no option is given,
 .B neorc
-will just print a small diagnostic message to stdout, saying if the service
-is up, down, finished or failed, and for how long it has been in that state.
+will just print a small diagnostic message to stdout about the current state
+of the service and for how long it has been in that state.
 .TP 5
 .B \-o
 Once.
@@ -51,9 +51,13 @@ Send the service a TERM signal.
 Kill.
 Send the service a KILL signal.
 .TP
+.B \-s
+Get state.
+Print the current state of the given the service.
+.TP
 .B \-g
 Get PID.
-Just print the PID of the service if it is running.
+Print the PID of the service if it is running.
 .TP
 .B \-C
 Clear.
