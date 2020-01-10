@@ -202,9 +202,28 @@ void handlekilled(pid_t killed, int status) {
   if (sid < 0) {
     return;
   }
-  unsigned long len = 0;
-  char *pidfile = 0;
-  if (!chdir(NIROOT) && !chdir(slist[sid].name)) {
+  if (slist[sid].state != SID_STOPPED) { // has been stopped
+    if (slist[sid].state == SID_SETUP) { // was setup
+      if (WIFEXITED(status) && WEXITSTATUS(status)) {
+        dbg("[%d:%s] CANCELED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
+        slist[sid].state = SID_CANCELED;
+      } else {
+        dbg("[%d:%s] INIT\n", sid, slist[sid].name);
+        slist[sid].state = SID_INIT;
+      }
+    } else { // was active
+      if (WIFEXITED(status) && WEXITSTATUS(status)) {
+        dbg("[%d:%s] FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
+        slist[sid].state = SID_FAILED;
+      } else {
+        dbg("[%d:%s] FINISHED\n", sid, slist[sid].name);
+        slist[sid].state = SID_FINISHED;
+      }
+    }
+  }
+  if (slist[sid].state == SID_FINISHED && !chdir(NIROOT) && !chdir(slist[sid].name)) {
+    unsigned long len = 0;
+    char *pidfile = 0;
     if (!openreadclose("pidfile", &pidfile, &len)) {
       for (char *s = pidfile; *s; s++) {
         if (*s == '\n') {
@@ -232,25 +251,6 @@ void handlekilled(pid_t killed, int status) {
             return;
           }
         }
-      }
-    }
-  }
-  if (slist[sid].state != SID_STOPPED) { // has been stopped
-    if (slist[sid].state == SID_SETUP) { // was setup
-      if (WIFEXITED(status) && WEXITSTATUS(status)) {
-        dbg("[%d:%s] CANCELED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
-        slist[sid].state = SID_CANCELED;
-      } else {
-        dbg("[%d:%s] INIT\n", sid, slist[sid].name);
-        slist[sid].state = SID_INIT;
-      }
-    } else { // was active
-      if (WIFEXITED(status) && WEXITSTATUS(status)) {
-        dbg("[%d:%s] FAILED %d\n", sid, slist[sid].name, WEXITSTATUS(status));
-        slist[sid].state = SID_FAILED;
-      } else {
-        dbg("[%d:%s] FINISHED\n", sid, slist[sid].name);
-        slist[sid].state = SID_FINISHED;
       }
     }
   }
