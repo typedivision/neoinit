@@ -53,7 +53,7 @@ Send the service a KILL signal.
 .TP
 .B \-s
 Get state.
-Print the current state of the given the service.
+Print the current state of the given service.
 .TP
 .B \-g
 Get PID.
@@ -84,9 +84,13 @@ This will print the names of the last spawned processes.
 This can be helpful if you see a process looping
 (initialization fails and it is restarting all the time).
 .TP
-.B \-L
+.B \-l
 List services.
-This will print the name, state and the time since it is in this state of all services.
+This will print the name of all known services.
+.TP
+.B \-L
+List services and states.
+This will print the name, state and the time since it is in this state for all services.
 
 .SH "EXIT STATUS"
 Generally,

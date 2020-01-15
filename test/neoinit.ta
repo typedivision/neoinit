@@ -811,6 +811,7 @@ test_rc_list () {
 sleep 6
 neorc -C down
 neorc -L | sed 's/[0-9]s$/x/'
+neorc -l
 EOF
   chmod +x $NIROOT/default/run
   ln -s /bin/true $NIROOT/ok/run
@@ -827,11 +828,16 @@ EOF
   PATH=$PWD/debug:$PATH
   debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
   cat <<EOF | diff -u - $t_TEST_TMP/out >&2
-default: active x
-ok: finished x
-down: init x
-nok: failed x
-setup_nok: canceled x
+default active x
+ok finished x
+down init x
+nok failed x
+setup_nok canceled x
+default
+ok
+down
+nok
+setup_nok
 EOF
 }
 
@@ -891,11 +897,11 @@ EOF
   PATH=$PWD/debug:$PATH
   debug/neoinit | grep -v "^\[" >$t_TEST_TMP/out
   cat <<EOF | diff -u - $t_TEST_TMP/out >&2
-default: active x
-ok: finished x
-down: init x
-nok: failed x
-setup_nok: canceled x
+default active x
+ok finished x
+down init x
+nok failed x
+setup_nok canceled x
 unknown: no such service
 EOF
 }

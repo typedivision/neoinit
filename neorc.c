@@ -229,7 +229,8 @@ int main(int argc, char *argv[]) {
         " -P pid\tset PID of service\n"
         " -D\tprint services started as dependency\n"
         " -H\thistory. print last started services\n"
-        " -L\tlist. print all services and its states");
+        " -l\tprint all known services\n"
+        " -L\tprint all services and its states");
     return 0;
   }
   // errmsg_iam("neorc");
@@ -240,7 +241,7 @@ int main(int argc, char *argv[]) {
       carp("could not acquire lock");
       sleep(1);
     }
-    if (argc == 2 && argv[1][1] != 'H' && argv[1][1] != 'L') {
+    if (argc == 2 && argv[1][1] != 'H' && argv[1][1] != 'l' && argv[1][1] != 'L') {
       int state = 0;
       pid_t pid = __readpid(argv[1], &state);
       if (buf[0] != '0') {
@@ -250,7 +251,7 @@ int main(int argc, char *argv[]) {
           char since[FMT_ULONG];
           which[fmt_state(which, state)] = 0;
           since[fmt_ulong(since, ut)] = 0;
-          msg(argv[1], ": ", which, " ", since, "s");
+          msg(argv[1], " ", which, " ", since, "s");
           return 0;
         }
         carp(argv[1], ": get pid failed");
@@ -371,6 +372,9 @@ int main(int argc, char *argv[]) {
         dumpservices('h');
         break;
       case 'L':
+        dumpservices('L');
+        break;
+      case 'l':
         dumpservices('l');
         break;
       case 'D':

@@ -48,8 +48,10 @@ OPTIONS
             can be helpful if you see a process looping  (initialization  fails  and  it  is
             restarting all the time).
 
-       -L   List services.  This will print the name, state and the time since it is in this
-            state of all services.
+       -l   List services.  This will print the name of all known services.
+
+       -L   List services and states.  This will print the name, state and the time since it
+            is in this state for all services.
 
 EXIT STATUS
        Generally,  neorc  returns 0 if everything is ok or 1 if an error has occurred (could

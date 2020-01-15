@@ -708,11 +708,15 @@ int main(int argc, char *argv[]) {
             }
           }
           write_checked(outfd, "\0", 1);
-        } else if (buf[0] == 'l') { // get service list
+        } else if (buf[0] == 'l' || buf[0] == 'L') { // get service list
           write_checked(outfd, "1:", 2);
           for (int i = 0; i <= svc_max; ++i) {
             write_checked(outfd, slist[i].name, str_len(slist[i].name));
-            write_checked(outfd, ": ", 2);
+            if (buf[0] == 'l') {
+              write_checked(outfd, "\0", 1);
+              continue;
+            }
+            write_checked(outfd, " ", 1);
             write_checked(outfd, buf, fmt_state(buf, slist[i].state));
             write_checked(outfd, " ", 1);
             write_checked(outfd, buf, fmt_ulong(buf, time(0) - slist[i].changed_at));
