@@ -22,8 +22,8 @@ void write_checked(int fd, const char *s, unsigned long len) {
 }
 
 int addservice(char *service) {
-  if (str_start(service, NIROOT "/")) {
-    service += sizeof(NIROOT "/") - 1;
+  if (str_start(service, NEOROOT "/")) {
+    service += sizeof(NEOROOT "/") - 1;
   }
   char *x = service + str_len(service) - 1;
   while (x > service && *x == '/') {
@@ -234,8 +234,8 @@ int main(int argc, char *argv[]) {
     return 0;
   }
   // errmsg_iam("neorc");
-  infd = open(NIROOT "/in", O_WRONLY | O_CLOEXEC);
-  outfd = open(NIROOT "/out", O_RDONLY | O_CLOEXEC);
+  infd = open(NEOROOT "/in", O_WRONLY | O_CLOEXEC);
+  outfd = open(NEOROOT "/out", O_RDONLY | O_CLOEXEC);
   if (infd >= 0) {
     while (lockf(infd, F_LOCK, 1)) {
       carp("could not acquire lock");
@@ -414,6 +414,6 @@ int main(int argc, char *argv[]) {
     }
     return ret;
   }
-  carp("neoinit: could not open " NIROOT "/in or " NIROOT "/out");
+  carp("neoinit: could not open " NEOROOT "/in or " NEOROOT "/out");
   return 1;
 }

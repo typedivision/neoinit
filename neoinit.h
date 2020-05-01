@@ -1,8 +1,8 @@
 #ifndef NEOINIT_H
 #define NEOINIT_H
 
-#ifndef NIROOT
-#define NIROOT "/etc/neoinit"
+#ifndef NEOROOT
+#define NEOROOT "/etc/neoinit"
 #endif
 
 #define BUFSIZE 1500
@@ -16,7 +16,7 @@
 #define SID_SETUP    5
 #define SID_CANCELED 6
 
-#define FMT_STATE 11 // str_len("setupfailed")
+#define FMT_STATE 8 // str_len("canceled")
 
 size_t fmt_state(char *buf, int state) {
   switch (state) {

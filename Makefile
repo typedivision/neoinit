@@ -6,9 +6,9 @@ ifneq ($(DEBUG),)
 CFLAGS += -g -DDEBUG
 endif
 
-NIROOT ?= /etc/neoinit
-ifneq ($(NIROOT),/etc/neoinit)
-D_NIROOT = -DNIROOT=\"$(NIROOT)\"
+NEOROOT ?= /etc/neoinit
+ifneq ($(NEOROOT),/etc/neoinit)
+DNEOROOT = -DNEOROOT=\"$(NEOROOT)\"
 endif
 
 MANDIR=/usr/man
@@ -28,7 +28,7 @@ hard-reboot: hard-reboot.o djb/str_len.o
 killall5: killall5.o
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< $(D_NIROOT)
+	$(CC) $(CFLAGS) -c $< $(DNEOROOT)
 
 djb/%.o: djb/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -50,9 +50,9 @@ install-files:
 	install -m 644 man/hard-reboot.8 man/neoinit.8 man/neorc.8 man/serdo.8 $(DESTDIR)$(MANDIR)/man8
 
 install-fifos:
-	install -d $(DESTDIR)$(NIROOT)
-	rm -f $(DESTDIR)$(NIROOT)/in $(DESTDIR)$(NIROOT)/out
-	mkfifo -m 600 $(DESTDIR)$(NIROOT)/in $(DESTDIR)$(NIROOT)/out
+	install -d $(DESTDIR)$(NEOROOT)
+	rm -f $(DESTDIR)$(NEOROOT)/in $(DESTDIR)$(NEOROOT)/out
+	mkfifo -m 600 $(DESTDIR)$(NEOROOT)/in $(DESTDIR)$(NEOROOT)/out
 
 install: install-files install-fifos
 
@@ -67,7 +67,7 @@ debug: neoinit.c neorc.c
 	$(MAKE) clean
 	mv _debug debug
 
-check: export NIROOT = $(CURDIR)/test/etc/neoinit
+check: export NEOROOT = $(CURDIR)/test/etc/neoinit
 check: PATH := test/test-again/bin:$(PATH)
 check: debug test/test-again
 	@ [ -d test/etc ] || $(MAKE) install-fifos
